@@ -167,6 +167,10 @@ fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 10*cm_to_inch))
 
 chi_values = np.linspace(CHI_MIN, CHI_MAX, N_CHI)
 
+# Sammelpunkte für neues φ2-gegen-χ Diagramm
+spinodal_x, spinodal_y = [], []  # Wendepunkte
+contact_x, contact_y = [], []    # Berührungspunkte
+
 for chi in tqdm(chi_values, desc="χ-Sweep"):
     G, dG_dphi, d2G_dphi2 = make_functions(chi)
     dGm_RT = G(phi2)  # G ist bereits ΔGm/RT
@@ -174,8 +178,17 @@ for chi in tqdm(chi_values, desc="χ-Sweep"):
     # Wendepunkte für dieses χ
     w_phi, w_G = spinodals(chi, G)
 
+    # Punkte für das neue Diagramm sammeln (Wendepunkte)
+    for w in np.atleast_1d(w_phi):
+        spinodal_x.append(float(w))
+        spinodal_y.append(float(chi))
+
     # Berührungspunkte (Gemeinsame Tangente), Linie wird NICHT geplottet
     a_phi, b_phi = common_tangent(chi, G, dG_dphi, d2G_dphi2)
+
+    # Punkte für das neue Diagramm sammeln (Berührungspunkte)
+    contact_x.extend([float(a_phi), float(b_phi)])
+    contact_y.extend([float(chi), float(chi)])
 
     # Plot: Kurve
     ax_main.plot(phi2, dGm_RT, color='0.4', linewidth=0.6)
@@ -191,7 +204,29 @@ ax_main.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
 ax_main.set_ylabel(r'$\Delta G^{m} / RT$')
 ax_main.grid(True)
 
+# =============================
+# Zweiter Plot: φ2 auf x-Achse, χ auf y-Achse; Dreiecke = Wendepunkte, Kreise = Berührungspunkte
+# =============================
+fig_pts, ax_pts = plt.subplots(figsize=(12*cm_to_inch, 10*cm_to_inch))
+
+# Streudiagramme ohne Farben (schwarz), Markerformen gemäss Vorgabe
+if len(spinodal_x):
+    ax_pts.scatter(spinodal_x, spinodal_y, marker='^', c='k', s=16)
+if len(contact_x):
+    ax_pts.scatter(contact_x, contact_y, marker='o', c='k', s=16)
+
+ax_pts.set_xlabel(r'$\varphi_2$')
+ax_pts.set_ylabel(r'$\chi$')
+ax_pts.set_xlim(0.0, 1.0)
+ax_pts.set_ylim(CHI_MIN, CHI_MAX)
+ax_pts.invert_yaxis()
+ax_pts.grid(True)
+
 path_main = os.path.join('flory', 'flory_huggins_sweep.pdf')
 fig_main.savefig(path_main, format='pdf', bbox_inches='tight')
 print("Exportiert:", path_main)
+
+path_pts = os.path.join('flory', 'flory_huggins_points.pdf')
+fig_pts.savefig(path_pts, format='pdf', bbox_inches='tight')
+print("Exportiert:", path_pts)
 # plt.show()
