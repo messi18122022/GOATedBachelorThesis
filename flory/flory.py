@@ -194,16 +194,9 @@ m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
 ax_main.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4, label='Minima verbunden')
-# Schnittpunkte der roten Linie mit der Kurve ΔGm/RT
-diff = dGm_RT - (m_min * phi2 + b_min)
-sign_changes = np.where(np.diff(np.sign(diff)))[0]
-if len(sign_changes) > 0:
-    for idx in sign_changes:
-        x_cross = phi2[idx]
-        y_cross = dGm_RT[idx]
-        # Nur markieren, wenn der Punkt nicht nahe einem Minimum liegt
-        if np.all(np.abs(x_cross - phi_minima) > 1e-3):
-            ax_main.scatter(x_cross, y_cross, color='red', marker='x', s=40, linewidths=1.0, label=None, zorder=10)
+# Bereich markieren, wo ΔGm/RT unter der roten Linie liegt
+y_line = m_min * phi2 + b_min
+ax_main.fill_between(phi2, dGm_RT, y_line, where=(dGm_RT < y_line), color='red', alpha=0.2)
 ax_main.scatter(phi_minima, G_minima, color='red', s=10, label='Minima')
 if len(wendepunkte_phi2) >= 1:
     ax_main.scatter(wendepunkte_phi2, wendepunkte_G, color='blue', s=10, label='Wendepunkte')
@@ -235,15 +228,6 @@ m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
 ax_z1.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4)
-# Schnittpunkte der roten Linie mit der Kurve ΔGm/RT (Zoom links)
-diff_z1 = dGm_RT - (m_min * phi2 + b_min)
-sign_changes_z1 = np.where(np.diff(np.sign(diff_z1)))[0]
-if len(sign_changes_z1) > 0:
-    for idx in sign_changes_z1:
-        x_cross = phi2[idx]
-        y_cross = dGm_RT[idx]
-        if np.all(np.abs(x_cross - phi_minima) > 1e-3):
-            ax_z1.scatter(x_cross, y_cross, color='red', marker='x', s=40, linewidths=1.0, label=None, zorder=10)
 ax_z1.scatter(phi_minima, G_minima, color='red')
 if len(wendepunkte_phi2) >= 2:
     # Gerade durch Wendepunkte über gesamten Bereich
@@ -273,15 +257,10 @@ m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
 ax_z2.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4)
-# Schnittpunkte der roten Linie mit der Kurve ΔGm/RT (Zoom rechts)
-diff_z2 = dGm_RT - (m_min * phi2 + b_min)
-sign_changes_z2 = np.where(np.diff(np.sign(diff_z2)))[0]
-if len(sign_changes_z2) > 0:
-    for idx in sign_changes_z2:
-        x_cross = phi2[idx]
-        y_cross = dGm_RT[idx]
-        if np.all(np.abs(x_cross - phi_minima) > 1e-3):
-            ax_z2.scatter(x_cross, y_cross, color='red', marker='x', s=40, linewidths=1.0, label=None, zorder=10)
+
+# Bereich markieren, wo ΔGm/RT unter der roten Linie liegt
+y_line = m_min * phi2 + b_min
+ax_z2.fill_between(phi2, dGm_RT, y_line, where=(dGm_RT < y_line), color='red', alpha=0.2)
 ax_z2.scatter(phi_minima, G_minima, color='red')
 if len(wendepunkte_phi2) >= 2:
     # Gerade durch Wendepunkte über gesamten Bereich
