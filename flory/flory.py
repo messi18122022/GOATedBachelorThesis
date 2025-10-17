@@ -188,34 +188,42 @@ cm_to_inch = 1/2.54
 
 # MAIN (16 cm × 10 cm)
 fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 10*cm_to_inch))
-ax_main.plot(phi2, dGm_RT, label='ΔGm/RT')
-ax_main.scatter(phi_minima[0], G_minima[0], color='orange',
-                label=f'Minimum 1 ({phi_minima[0]:.3f}, {G_minima[0]:.3f})')
-ax_main.scatter(phi_minima[1], G_minima[1], color='red',
-                label=f'Minimum 2 ({phi_minima[1]:.3f}, {G_minima[1]:.3f})')
-# Gerade durch die beiden Minima (voller Achsenbereich)
+ax_main.plot(phi2, dGm_RT, label='ΔGm/RT', linewidth=0.8)
+# Gerade durch die beiden Minima (über gesamten Achsenbereich, sichtbar)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
-ax_main.plot(x_full, m_min * x_full + b_min, '--', color='red', label='Minima verbunden')
+ax_main.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4, label='Minima verbunden')
+# Schnittpunkte der roten Linie mit der Kurve ΔGm/RT
+diff = dGm_RT - (m_min * phi2 + b_min)
+sign_changes = np.where(np.diff(np.sign(diff)))[0]
+if len(sign_changes) > 0:
+    for idx in sign_changes:
+        x_cross = phi2[idx]
+        y_cross = dGm_RT[idx]
+        # Nur markieren, wenn der Punkt nicht nahe einem Minimum liegt
+        if np.all(np.abs(x_cross - phi_minima) > 1e-3):
+            ax_main.scatter(x_cross, y_cross, color='red', marker='x', s=40, linewidths=1.0, label=None, zorder=10)
+ax_main.scatter(phi_minima, G_minima, color='red', s=10, label='Minima')
 if len(wendepunkte_phi2) >= 1:
-    ax_main.scatter(wendepunkte_phi2[0], wendepunkte_G[0], color='skyblue',
-                    label=f'Wendepunkt 1 ({wendepunkte_phi2[0]:.3f}, {wendepunkte_G[0]:.3f})')
+    ax_main.scatter(wendepunkte_phi2, wendepunkte_G, color='blue', s=10, label='Wendepunkte')
 if len(wendepunkte_phi2) >= 2:
-    ax_main.scatter(wendepunkte_phi2[1], wendepunkte_G[1], color='blue',
-                    label=f'Wendepunkt 2 ({wendepunkte_phi2[1]:.3f}, {wendepunkte_G[1]:.3f})')
+    # Gerade durch Wendepunkte über gesamten Bereich
+    m_wend = (wendepunkte_G[1] - wendepunkte_G[0]) / (wendepunkte_phi2[1] - wendepunkte_phi2[0])
+    b_wend = wendepunkte_G[0] - m_wend * wendepunkte_phi2[0]
+    x_full = np.array([0.0, 1.0])
+    ax_main.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=0.4)
+
 if np.isfinite(m_tan) and (phi_a < phi_b):
     # Tangente ueber den vollen Achsenbereich
     x_full = np.array([0.0, 1.0])
-    ax_main.plot(x_full, m_tan * x_full + b_tan, '--', color='green', label='Gemeinsame Tangente')
-    ax_main.scatter(phi_a, G(phi_a), color='lightgreen', label=f'Berührpunkt links ({phi_a:.3f}, {G(phi_a):.3f})')
-    ax_main.scatter(phi_b, G(phi_b), color='green', label=f'Berührpunkt rechts ({phi_b:.3f}, {G(phi_b):.3f})')
+    ax_main.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=0.4, label='Gemeinsame Tangente')
+    ax_main.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green', s=10, label='Berührpunkte')
 ax_main.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
 ax_main.set_ylabel(r'$\Delta G^{m} / RT$')
-ax_main.set_title(r'Flory-Huggins-Mischungsenthalpie ($X_N = 10$, $\chi = 1.5$)')
 ax_main.legend(fontsize='small')
 ax_main.grid(True)
-ax_main.set_ylim(-0.2, 0.03)
+ax_main.set_ylim(-0.2, 0.05)
 path_main = os.path.join('flory', 'abb2_12_main.pdf')
 fig_main.savefig(path_main, format='pdf', bbox_inches='tight')
 
@@ -226,14 +234,29 @@ ax_z1.plot(phi2, dGm_RT)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
-ax_z1.plot(x_full, m_min * x_full + b_min, '--', color='red')
-ax_z1.scatter(phi_minima[0], G_minima[0], color='orange')
-ax_z1.scatter(phi_minima[1], G_minima[1], color='red')
+ax_z1.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4)
+# Schnittpunkte der roten Linie mit der Kurve ΔGm/RT (Zoom links)
+diff_z1 = dGm_RT - (m_min * phi2 + b_min)
+sign_changes_z1 = np.where(np.diff(np.sign(diff_z1)))[0]
+if len(sign_changes_z1) > 0:
+    for idx in sign_changes_z1:
+        x_cross = phi2[idx]
+        y_cross = dGm_RT[idx]
+        if np.all(np.abs(x_cross - phi_minima) > 1e-3):
+            ax_z1.scatter(x_cross, y_cross, color='red', marker='x', s=40, linewidths=1.0, label=None, zorder=10)
+ax_z1.scatter(phi_minima, G_minima, color='red')
+if len(wendepunkte_phi2) >= 2:
+    # Gerade durch Wendepunkte über gesamten Bereich
+    m_wend = (wendepunkte_G[1] - wendepunkte_G[0]) / (wendepunkte_phi2[1] - wendepunkte_phi2[0])
+    b_wend = wendepunkte_G[0] - m_wend * wendepunkte_phi2[0]
+    x_full = np.array([0.0, 1.0])
+    ax_z1.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=0.4)
+
 if np.isfinite(m_tan) and (phi_a < phi_b):
     # Tangente über gesamten Bereich
     x_full = np.array([0.0, 1.0])
-    ax_z1.plot(x_full, m_tan * x_full + b_tan, '--', color='green')
-    ax_z1.scatter(phi_a, G(phi_a), color='lightgreen')
+    ax_z1.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=0.4)
+    ax_z1.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green')
 ax_z1.set_xlim(0.0, 0.006)
 ax_z1.set_ylim(-0.0005, 0.0001)
 ax_z1.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
@@ -249,16 +272,31 @@ ax_z2.plot(phi2, dGm_RT)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
-ax_z2.plot(x_full, m_min * x_full + b_min, '--', color='red')
-ax_z2.scatter(phi_minima[0], G_minima[0], color='orange')
-ax_z2.scatter(phi_minima[1], G_minima[1], color='red')
+ax_z2.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4)
+# Schnittpunkte der roten Linie mit der Kurve ΔGm/RT (Zoom rechts)
+diff_z2 = dGm_RT - (m_min * phi2 + b_min)
+sign_changes_z2 = np.where(np.diff(np.sign(diff_z2)))[0]
+if len(sign_changes_z2) > 0:
+    for idx in sign_changes_z2:
+        x_cross = phi2[idx]
+        y_cross = dGm_RT[idx]
+        if np.all(np.abs(x_cross - phi_minima) > 1e-3):
+            ax_z2.scatter(x_cross, y_cross, color='red', marker='x', s=40, linewidths=1.0, label=None, zorder=10)
+ax_z2.scatter(phi_minima, G_minima, color='red')
+if len(wendepunkte_phi2) >= 2:
+    # Gerade durch Wendepunkte über gesamten Bereich
+    m_wend = (wendepunkte_G[1] - wendepunkte_G[0]) / (wendepunkte_phi2[1] - wendepunkte_phi2[0])
+    b_wend = wendepunkte_G[0] - m_wend * wendepunkte_phi2[0]
+    x_full = np.array([0.0, 1.0])
+    ax_z2.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=0.4)
+
 if np.isfinite(m_tan) and (phi_a < phi_b):
     # Tangente über gesamten Bereich
     x_full = np.array([0.0, 1.0])
-    ax_z2.plot(x_full, m_tan * x_full + b_tan, '--', color='green')
-    ax_z2.scatter(phi_b, G(phi_b), color='green')
-ax_z2.set_xlim(0.82, 0.90)
-ax_z2.set_ylim(-0.110, -0.102)
+    ax_z2.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=0.4)
+    ax_z2.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green')
+ax_z2.set_xlim(0.78, 0.90)
+ax_z2.set_ylim(-0.11, -0.09)
 ax_z2.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
 ax_z2.set_ylabel('')
 ax_z2.grid(True)
@@ -266,5 +304,4 @@ path_z2 = os.path.join('flory', 'abb2_12_zoom_right.pdf')
 fig_z2.savefig(path_z2, format='pdf', bbox_inches='tight')
 
 print("Exportiert:\n  ", path_main, "\n  ", path_z1, "\n  ", path_z2)
-
-plt.show()
+# plt.show()
