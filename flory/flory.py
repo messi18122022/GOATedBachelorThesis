@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
-    "text.latex.preamble": r"\usepackage{amsmath}"
+    "text.latex.preamble": r"\usepackage{amsmath}\usepackage{xcolor}"
 })
 
 # Fortschrittsbalken (tqdm), mit Fallback falls nicht installiert
@@ -56,6 +56,16 @@ def d2G_dphi2(phi):
     phi = _clip(phi)
     # zweite Ableitung
     return 1.0/(1.0 - phi) + 1.0/(XN*phi) - 2.0*chi
+
+# =============================
+# Hilfsfunktion: Wissenschaftliche Darstellung für LaTeX
+# =============================
+def sci(x, digits=3):
+    """Formatiert Zahl als Mantisse × 10^{Exponent} (LaTeX)."""
+    s = f"{float(x):.{digits}e}"
+    mantissa, exp = s.split('e')
+    exp = int(exp)
+    return rf"{mantissa} \times 10^{{{exp}}}"
 
 # =============================
 # Ableitungen, Wendepunkte (Spinodale-Indikatoren) und Minima
@@ -193,8 +203,8 @@ b_tan = G(phi_a) - m_tan * phi_a
 os.makedirs('flory', exist_ok=True)
 cm_to_inch = 1/2.54
 
-# MAIN (16 cm × 10 cm)
-fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 10*cm_to_inch))
+# MAIN (16 cm × 6.5 cm)
+fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 6.5*cm_to_inch))
 ax_main.plot(phi2, dGm_RT, label=r'$\Delta G^{m} / RT$', linewidth=1.0)
 # Gerade durch die beiden Minima (über gesamten Achsenbereich, sichtbar)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
@@ -219,14 +229,16 @@ if np.isfinite(m_tan) and (phi_a < phi_b):
     x_full = np.array([0.0, 1.0])
     ax_main.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=1.0, label='Gemeinsame Tangente')
     ax_main.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green', s=10, label='Berührpunkte')
+ax_main.set_xlabel(r'$\varphi_2$')
+ax_main.set_ylabel(r'$\Delta G^{m} / (RT)$')
 ax_main.legend(fontsize='small')
 ax_main.grid(True)
 ax_main.set_ylim(-0.15, 0.05)
 path_main = os.path.join('flory', 'abb2_12_main.pdf')
 fig_main.savefig(path_main, format='pdf', bbox_inches='tight')
 
-# ZOOM LINKS (7.5 cm × 7.5 cm)
-fig_z1, ax_z1 = plt.subplots(figsize=(7.5*cm_to_inch, 7.5*cm_to_inch))
+# ZOOM LINKS (16 cm × 6.5 cm)
+fig_z1, ax_z1 = plt.subplots(figsize=(16*cm_to_inch, 6.5*cm_to_inch))
 ax_z1.plot(phi2, dGm_RT, linewidth=1.0)
 # Gerade durch die beiden Minima (über gesamten Achsenbereich)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
@@ -251,11 +263,25 @@ ax_z1.set_ylim(-0.0005, 0.0001)
 ax_z1.set_xlabel(r'$\varphi_2$')
 ax_z1.set_ylabel(r'$\Delta G^{m} / (RT)$')
 ax_z1.grid(True)
+    # Beschriftungen direkt neben die Punkte (wissenschaftliche Schreibweise)
+label_left_min = rf"$\left({sci(phi_minima[0])}, {sci(G_minima[0])}\right)$"
+ax_z1.annotate(label_left_min,
+               (phi_minima[0], G_minima[0]),
+               xytext=(4, 4), textcoords='offset points',
+               ha='left', va='bottom',
+               bbox=dict(boxstyle='round', facecolor='white', alpha=0.6, edgecolor='gray'))
+if np.isfinite(m_tan) and (phi_a < phi_b):
+    label_left_touch = rf"$\left({sci(phi_a)}, {sci(G(phi_a))}\right)$"
+    ax_z1.annotate(label_left_touch,
+                   (phi_a, G(phi_a)),
+                   xytext=(4, 4), textcoords='offset points',
+                   ha='left', va='bottom',
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.6, edgecolor='gray'))
 path_z1 = os.path.join('flory', 'abb2_12_zoom_left.pdf')
 fig_z1.savefig(path_z1, format='pdf', bbox_inches='tight')
 
-# ZOOM RECHTS (7.5 cm × 7.5 cm, kein y-Label)
-fig_z2, ax_z2 = plt.subplots(figsize=(7.5*cm_to_inch, 7.5*cm_to_inch))
+# ZOOM RECHTS (16 cm × 6.5 cm, kein y-Label)
+fig_z2, ax_z2 = plt.subplots(figsize=(16*cm_to_inch, 6.5*cm_to_inch))
 ax_z2.plot(phi2, dGm_RT, linewidth=1.0)
 # Gerade durch die beiden Minima (über gesamten Achsenbereich)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
@@ -280,10 +306,24 @@ if np.isfinite(m_tan) and (phi_a < phi_b):
     ax_z2.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=1.0)
     ax_z2.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green')
 ax_z2.set_xlim(0.78, 0.90)
-ax_z2.set_ylim(-0.11, -0.09)
+ax_z2.set_ylim(-0.11, -0.095)
 ax_z2.set_xlabel(r'$\varphi_2$')
-ax_z2.set_ylabel('')
+ax_z2.set_ylabel(r'$\Delta G^{m} / (RT)$')
 ax_z2.grid(True)
+    # Beschriftungen direkt neben die Punkte (wissenschaftliche Schreibweise)
+label_right_min = rf"$\left({phi_minima[1]:.4f}, {G_minima[1]:.4f}\right)$"
+ax_z2.annotate(label_right_min,
+               (phi_minima[1], G_minima[1]),
+               xytext=(4, 4), textcoords='offset points',
+               ha='left', va='bottom',
+               bbox=dict(boxstyle='round', facecolor='white', alpha=0.6, edgecolor='gray'))
+if np.isfinite(m_tan) and (phi_a < phi_b):
+    label_right_touch = rf"$\left({phi_b:.4f}, {G(phi_b):.4f}\right)$"
+    ax_z2.annotate(label_right_touch,
+                   (phi_b, G(phi_b)),
+                   xytext=(4, 4), textcoords='offset points',
+                   ha='left', va='bottom',
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.6, edgecolor='gray'))
 path_z2 = os.path.join('flory', 'abb2_12_zoom_right.pdf')
 fig_z2.savefig(path_z2, format='pdf', bbox_inches='tight')
 
