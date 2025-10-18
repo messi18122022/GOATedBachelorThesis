@@ -277,30 +277,31 @@ def getrennte_äste(punkte):
         phi_rechts.append(phi_r)
     return phi_links, phi_rechts, chi_liste
 
-# Spinodale (durchgezogene Linie)
 spinodal_links, spinodal_rechts, chi_vals = getrennte_äste((spinodal_y_sorted, spinodal_x_sorted))
-ax_pts.plot(spinodal_links, chi_vals, linestyle='-', color='dimgray', label='Spinodale (links)')
-ax_pts.plot(spinodal_rechts, chi_vals, linestyle='-', color='dimgray', label='Spinodale (rechts)')
+ax_pts.plot(spinodal_links, chi_vals, linestyle='-', color='dimgray', label='Spinodale')
+ax_pts.plot(spinodal_rechts, chi_vals, linestyle='-', color='dimgray')
 
 # Binodale (gestrichelte Linie)
 contact_links, contact_rechts, chi_vals = getrennte_äste((contact_y_sorted, contact_x_sorted))
-ax_pts.plot(contact_links, chi_vals, linestyle='--', color='gray', label='Binodale (links)')
-ax_pts.plot(contact_rechts, chi_vals, linestyle='--', color='gray', label='Binodale (rechts)')
+ax_pts.plot(contact_links, chi_vals, linestyle='--', color='gray', label='Binodale')
+ax_pts.plot(contact_rechts, chi_vals, linestyle='--', color='gray')
 
 # Schattierung der Regionen: instabil (dunkler), metastabil (heller)
-ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='gray', alpha=0.25, label='instabil (zwischen Spinodalen)')
-ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='lightgray', alpha=0.25, label='metastabil (zwischen Binodalen)')
+ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='dimgray', alpha=0.20, label='instabil (zwischen Spinodalen)')
+ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='gray', alpha=0.14, label='metastabil (zwischen Binodalen)')
 
-# Neuer Punkt (Mittelpunkt bei χ = 0.866)
 if middle_phi is not None:
-    ax_pts.scatter([middle_phi], [target_chi], marker='o', c='black', s=10, label='Mittelpunkt bei χ=0.866')
+    ax_pts.scatter([middle_phi], [target_chi], marker='o', c='black', s=10, label=r'$\chi_c \approx 0.866$')
 
 ax_pts.set_xlabel(r'$\varphi_2$')
 ax_pts.set_ylabel(r'$\chi$')
 ax_pts.set_xlim(0.0, 1.0)
-ax_pts.set_ylim(0.75*CHI_MIN, CHI_MAX)
+ax_pts.set_xticks(np.linspace(0.0, 1.0, 6))
+ax_pts.set_ylim(0.8, 1.5)
 ax_pts.invert_yaxis()
 ax_pts.grid(True)
+
+ax_pts.legend(loc='center left', bbox_to_anchor=(1.05, 0.5))
 
 path_main = os.path.join('flory', 'flory_huggins_sweep.pdf')
 fig_main.savefig(path_main, format='pdf', bbox_inches='tight')
@@ -310,5 +311,5 @@ path_pts = os.path.join('flory', 'flory_huggins_points.pdf')
 fig_pts.savefig(path_pts, format='pdf', bbox_inches='tight')
 print("Exportiert:", path_pts)
 
-ax_pts.legend()
+# ax_pts.legend()  # Entfernt, da keine Legende mehr angezeigt werden soll
 plt.show()
