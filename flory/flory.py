@@ -188,12 +188,12 @@ cm_to_inch = 1/2.54
 
 # MAIN (16 cm × 10 cm)
 fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 10*cm_to_inch))
-ax_main.plot(phi2, dGm_RT, label='ΔGm/RT', linewidth=0.8)
+ax_main.plot(phi2, dGm_RT, label='ΔGm/RT', linewidth=1.0)
 # Gerade durch die beiden Minima (über gesamten Achsenbereich, sichtbar)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
-ax_main.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4, label='Minima verbunden')
+ax_main.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=1.0, label='Minima verbunden')
 # Bereich markieren, wo ΔGm/RT unter der roten Linie liegt
 y_line = m_min * phi2 + b_min
 ax_main.fill_between(phi2, dGm_RT, y_line, where=(dGm_RT < y_line), color='red', alpha=0.2)
@@ -205,41 +205,41 @@ if len(wendepunkte_phi2) >= 2:
     m_wend = (wendepunkte_G[1] - wendepunkte_G[0]) / (wendepunkte_phi2[1] - wendepunkte_phi2[0])
     b_wend = wendepunkte_G[0] - m_wend * wendepunkte_phi2[0]
     x_full = np.array([0.0, 1.0])
-    ax_main.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=0.4)
+    ax_main.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=1.0)
 
 if np.isfinite(m_tan) and (phi_a < phi_b):
     # Tangente ueber den vollen Achsenbereich
     x_full = np.array([0.0, 1.0])
-    ax_main.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=0.4, label='Gemeinsame Tangente')
+    ax_main.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=1.0, label='Gemeinsame Tangente')
     ax_main.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green', s=10, label='Berührpunkte')
 ax_main.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
 ax_main.set_ylabel(r'$\Delta G^{m} / RT$')
 ax_main.legend(fontsize='small')
 ax_main.grid(True)
-ax_main.set_ylim(-0.2, 0.05)
+ax_main.set_ylim(-0.15, 0.05)
 path_main = os.path.join('flory', 'abb2_12_main.pdf')
 fig_main.savefig(path_main, format='pdf', bbox_inches='tight')
 
 # ZOOM LINKS (7.5 cm × 7.5 cm)
 fig_z1, ax_z1 = plt.subplots(figsize=(7.5*cm_to_inch, 7.5*cm_to_inch))
-ax_z1.plot(phi2, dGm_RT)
+ax_z1.plot(phi2, dGm_RT, linewidth=1.0)
 # Gerade durch die beiden Minima (über gesamten Achsenbereich)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
-ax_z1.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4)
+ax_z1.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=1.0)
 ax_z1.scatter(phi_minima, G_minima, color='red')
 if len(wendepunkte_phi2) >= 2:
     # Gerade durch Wendepunkte über gesamten Bereich
     m_wend = (wendepunkte_G[1] - wendepunkte_G[0]) / (wendepunkte_phi2[1] - wendepunkte_phi2[0])
     b_wend = wendepunkte_G[0] - m_wend * wendepunkte_phi2[0]
     x_full = np.array([0.0, 1.0])
-    ax_z1.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=0.4)
+    ax_z1.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=1.0)
 
 if np.isfinite(m_tan) and (phi_a < phi_b):
     # Tangente über gesamten Bereich
     x_full = np.array([0.0, 1.0])
-    ax_z1.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=0.4)
+    ax_z1.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=1.0)
     ax_z1.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green')
 ax_z1.set_xlim(0.0, 0.006)
 ax_z1.set_ylim(-0.0005, 0.0001)
@@ -251,12 +251,12 @@ fig_z1.savefig(path_z1, format='pdf', bbox_inches='tight')
 
 # ZOOM RECHTS (7.5 cm × 7.5 cm, kein y-Label)
 fig_z2, ax_z2 = plt.subplots(figsize=(7.5*cm_to_inch, 7.5*cm_to_inch))
-ax_z2.plot(phi2, dGm_RT)
+ax_z2.plot(phi2, dGm_RT, linewidth=1.0)
 # Gerade durch die beiden Minima (über gesamten Achsenbereich)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
 x_full = np.array([0.0, 1.0])
-ax_z2.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=0.4)
+ax_z2.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=1.0)
 
 # Bereich markieren, wo ΔGm/RT unter der roten Linie liegt
 y_line = m_min * phi2 + b_min
@@ -267,12 +267,12 @@ if len(wendepunkte_phi2) >= 2:
     m_wend = (wendepunkte_G[1] - wendepunkte_G[0]) / (wendepunkte_phi2[1] - wendepunkte_phi2[0])
     b_wend = wendepunkte_G[0] - m_wend * wendepunkte_phi2[0]
     x_full = np.array([0.0, 1.0])
-    ax_z2.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=0.4)
+    ax_z2.plot(x_full, m_wend * x_full + b_wend, '--', color='blue', linewidth=1.0)
 
 if np.isfinite(m_tan) and (phi_a < phi_b):
     # Tangente über gesamten Bereich
     x_full = np.array([0.0, 1.0])
-    ax_z2.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=0.4)
+    ax_z2.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=1.0)
     ax_z2.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green')
 ax_z2.set_xlim(0.78, 0.90)
 ax_z2.set_ylim(-0.11, -0.09)
