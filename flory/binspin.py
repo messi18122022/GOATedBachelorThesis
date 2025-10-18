@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from numba import njit
 
 # Fortschrittsbalken (tqdm), mit Fallback falls nicht installiert
 try:
@@ -9,16 +10,26 @@ except Exception:
     def tqdm(x, **kwargs):
         return x
 
+@njit
+def _clip_jit(phi):
+    return np.clip(phi, 1e-12, 1-1e-12)
+
+@njit
+def G_numba(phi, chi, XN):
+    phi = _clip_jit(phi)
+    phi1 = 1 - phi
+    return phi1 * np.log(phi1) + (phi / XN) * np.log(phi) + chi * phi1 * phi
+
 # =============================
 # Parameter
 # =============================
 XN = 10
-CHI_MIN, CHI_MAX, N_CHI = 0.86623, 1.5, 20
+CHI_MIN, CHI_MAX, N_CHI = 0.866, 1.5, 20
 
 # =============================
 # Diskretisierung (fein)
 # =============================
-phi2 = np.linspace(1e-6, 1-1e-6, 20001)  # Polymeranteil
+phi2 = np.linspace(1e-6, 1-1e-6, 2001)  # Polymeranteil
 phi1 = 1 - phi2
 
 # =============================
@@ -72,7 +83,7 @@ def common_tangent(chi, G, dG_dphi, d2G_dphi2):
     phi_b_lo, phi_b_hi = 0.30, 0.98
     phi_a, phi_b = None, None
 
-    for npts in (2000, 4000, 8000):
+    for npts in (200, 400, 800):
         Aa = np.linspace(phi_a_lo, phi_a_hi, npts)
         Bb = np.linspace(phi_b_lo, phi_b_hi, npts)
         AAm, BBm = np.meshgrid(Aa, Bb, indexing='ij')
@@ -173,7 +184,7 @@ contact_x, contact_y = [], []    # Berührungspunkte
 
 for chi in tqdm(chi_values, desc="χ-Sweep"):
     G, dG_dphi, d2G_dphi2 = make_functions(chi)
-    dGm_RT = G(phi2)  # G ist bereits ΔGm/RT
+    dGm_RT = G_numba(phi2, chi, XN)  # JIT-kompilierte Version verwenden
 
     # Wendepunkte für dieses χ
     w_phi, w_G = spinodals(chi, G)
@@ -191,14 +202,14 @@ for chi in tqdm(chi_values, desc="χ-Sweep"):
     contact_y.extend([float(chi), float(chi)])
 
     # Plot: Kurve
-    ax_main.plot(phi2, dGm_RT, color='0.4', linewidth=0.6)
+    ax_main.plot(phi2, dGm_RT, color='orange', linewidth=0.6)
 
-    # Marker: Wendepunkte (Dreiecke, schwarz)
+    # Marker: Wendepunkte (Dreiecke, orange)
     if w_phi.size:
-        ax_main.scatter(w_phi, w_G, marker='^', c='k', s=12)
+        ax_main.scatter(w_phi, w_G, marker='^', c='orange', s=12)
 
-    # Marker: Berührungspunkte (Kreise, schwarz)
-    ax_main.scatter([a_phi, b_phi], [G(a_phi), G(b_phi)], marker='o', c='k', s=14)
+    # Marker: Berührungspunkte (Kreise, orange)
+    ax_main.scatter([a_phi, b_phi], [G(a_phi), G(b_phi)], marker='o', c='orange', s=14)
 
 ax_main.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
 ax_main.set_ylabel(r'$\Delta G^{m} / RT$')
@@ -209,16 +220,19 @@ ax_main.grid(True)
 # =============================
 fig_pts, ax_pts = plt.subplots(figsize=(12*cm_to_inch, 10*cm_to_inch))
 
-# Streudiagramme ohne Farben (schwarz), Markerformen gemäss Vorgabe
-if len(spinodal_x):
-    ax_pts.scatter(spinodal_x, spinodal_y, marker='^', c='k', s=16)
-if len(contact_x):
-    ax_pts.scatter(contact_x, contact_y, marker='o', c='k', s=16)
+
+#
+# Streudiagramme wie ursprünglich: Wendepunkte (Dreiecke), Berührungspunkte (Kreise)
+if len(spinodal_x) or len(spinodal_y):
+    ax_pts.scatter(spinodal_x, spinodal_y, marker='^', c='orange', s=16)
+if len(contact_x) or len(contact_y):
+    ax_pts.scatter(contact_x, contact_y, marker='o', c='orange', s=16)
+
 
 ax_pts.set_xlabel(r'$\varphi_2$')
 ax_pts.set_ylabel(r'$\chi$')
 ax_pts.set_xlim(0.0, 1.0)
-ax_pts.set_ylim(CHI_MIN, CHI_MAX)
+ax_pts.set_ylim(0.75*CHI_MIN, CHI_MAX)
 ax_pts.invert_yaxis()
 ax_pts.grid(True)
 
@@ -229,4 +243,4 @@ print("Exportiert:", path_main)
 path_pts = os.path.join('flory', 'flory_huggins_points.pdf')
 fig_pts.savefig(path_pts, format='pdf', bbox_inches='tight')
 print("Exportiert:", path_pts)
-# plt.show()
+plt.show()
