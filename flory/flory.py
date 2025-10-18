@@ -2,6 +2,13 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+# LaTeX-Aktivierung für matplotlib
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "text.latex.preamble": r"\usepackage{amsmath}"
+})
+
 # Fortschrittsbalken (tqdm), mit Fallback falls nicht installiert
 try:
     from tqdm import tqdm
@@ -188,7 +195,7 @@ cm_to_inch = 1/2.54
 
 # MAIN (16 cm × 10 cm)
 fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 10*cm_to_inch))
-ax_main.plot(phi2, dGm_RT, label='ΔGm/RT', linewidth=1.0)
+ax_main.plot(phi2, dGm_RT, label=r'$\Delta G^{m} / RT$', linewidth=1.0)
 # Gerade durch die beiden Minima (über gesamten Achsenbereich, sichtbar)
 m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
 b_min = G_minima[0] - m_min * phi_minima[0]
@@ -212,7 +219,7 @@ if np.isfinite(m_tan) and (phi_a < phi_b):
     x_full = np.array([0.0, 1.0])
     ax_main.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=1.0, label='Gemeinsame Tangente')
     ax_main.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green', s=10, label='Berührpunkte')
-ax_main.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
+ax_main.set_xlabel(r'$\varphi_2$')
 ax_main.set_ylabel(r'$\Delta G^{m} / RT$')
 ax_main.legend(fontsize='small')
 ax_main.grid(True)
@@ -243,7 +250,7 @@ if np.isfinite(m_tan) and (phi_a < phi_b):
     ax_z1.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green')
 ax_z1.set_xlim(0.0, 0.006)
 ax_z1.set_ylim(-0.0005, 0.0001)
-ax_z1.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
+ax_z1.set_xlabel(r'$\varphi_2$')
 ax_z1.set_ylabel(r'$\Delta G^{m} / RT$')
 ax_z1.grid(True)
 path_z1 = os.path.join('flory', 'abb2_12_zoom_left.pdf')
@@ -276,7 +283,7 @@ if np.isfinite(m_tan) and (phi_a < phi_b):
     ax_z2.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green')
 ax_z2.set_xlim(0.78, 0.90)
 ax_z2.set_ylim(-0.11, -0.09)
-ax_z2.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
+ax_z2.set_xlabel(r'$\varphi_2$')
 ax_z2.set_ylabel('')
 ax_z2.grid(True)
 path_z2 = os.path.join('flory', 'abb2_12_zoom_right.pdf')
