@@ -211,21 +211,20 @@ for chi in tqdm(chi_values, desc="χ-Sweep"):
     contact_y.extend([float(chi), float(chi)])
 
     # Plot: Kurve
-    ax_main.plot(phi2, dGm_RT, color='lightgray', linewidth=0.4)
+    ax_main.plot(phi2, dGm_RT, color='gray', linewidth=0.4)
 
-    # Marker: Wendepunkte (Dreiecke, dimgray)
+    # Marker: Wendepunkte (Dreiecke, gray)
     if w_phi.size:
-        ax_main.scatter(w_phi, w_G, marker='^', c='dimgray', s=10, zorder=5)
+        ax_main.scatter(w_phi, w_G, marker='^', c='gray', s=10, zorder=5)
 
-
-    # Marker: Berührungspunkte (Kreise, grau)
-    ax_main.scatter([a_phi, b_phi], [G(a_phi), G(b_phi)], marker='o', c='gray', s=10, zorder=6)
+    # Marker: Berührungspunkte (Kreise, dimgrey)
+    ax_main.scatter([a_phi, b_phi], [G(a_phi), G(b_phi)], marker='o', c='dimgrey', s=10, zorder=6)
 
 # Legende fuer den Sweep-Plot (eine graue Linie, Dreieck fuer Wendepunkte, Punkt fuer Beruehrungspunkte)
 legend_elements = [
-    Line2D([0], [0], color='lightgray', linewidth=0.8, label=r'$\Delta G^{m}/(RT)$'),
-    Line2D([0], [0], marker='^', linestyle='None', markerfacecolor='dimgray', markeredgecolor='dimgray', label='Wendepunkte'),
-    Line2D([0], [0], marker='o', linestyle='None', markerfacecolor='gray', markeredgecolor='gray', label='Berührungspunkte'),
+    Line2D([0], [0], color='gray', linewidth=0.8, label=r'$\Delta G^{m}/(RT)$'),
+    Line2D([0], [0], marker='^', linestyle='None', markerfacecolor='gray', markeredgecolor='gray', label='Wendepunkte'),
+    Line2D([0], [0], marker='o', linestyle='None', markerfacecolor='dimgrey', markeredgecolor='dimgrey', label='Berührungspunkte'),
 ]
 ax_main.legend(handles=legend_elements, loc='best')
 
