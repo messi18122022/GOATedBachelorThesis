@@ -24,7 +24,7 @@ def G_numba(phi, chi, XN):
 # Parameter
 # =============================
 XN = 10
-CHI_MIN, CHI_MAX, N_CHI = 0.866, 1.5, 20
+CHI_MIN, CHI_MAX, N_CHI = 0.866, 1.5, 200
 
 # =============================
 # Diskretisierung (fein)
@@ -202,18 +202,24 @@ for chi in tqdm(chi_values, desc="χ-Sweep"):
     contact_y.extend([float(chi), float(chi)])
 
     # Plot: Kurve
-    ax_main.plot(phi2, dGm_RT, color='orange', linewidth=0.6)
+    ax_main.plot(phi2, dGm_RT, color='lightgray', linewidth=0.4)
 
-    # Marker: Wendepunkte (Dreiecke, orange)
+    # Marker: Wendepunkte (Dreiecke, dimgray)
     if w_phi.size:
-        ax_main.scatter(w_phi, w_G, marker='^', c='orange', s=12)
+        ax_main.scatter(w_phi, w_G, marker='^', c='dimgray', s=10, zorder=5)
 
-    # Marker: Berührungspunkte (Kreise, orange)
-    ax_main.scatter([a_phi, b_phi], [G(a_phi), G(b_phi)], marker='o', c='orange', s=14)
+    # Marker: Berührungspunkte (Kreise, grau)
+    ax_main.scatter([a_phi, b_phi], [G(a_phi), G(b_phi)], marker='o', c='gray', s=10, zorder=6)
 
 ax_main.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
 ax_main.set_ylabel(r'$\Delta G^{m} / RT$')
 ax_main.grid(True)
+
+# =============================
+# Neuer Punkt: Mittelwert der Berührungspunkte bei χ = 0.866
+# =============================
+target_chi = 0.866
+middle_phi = 0.241
 
 # =============================
 # Zweiter Plot: φ2 auf x-Achse, χ auf y-Achse; Dreiecke = Wendepunkte, Kreise = Berührungspunkte
@@ -222,12 +228,72 @@ fig_pts, ax_pts = plt.subplots(figsize=(12*cm_to_inch, 10*cm_to_inch))
 
 
 #
-# Streudiagramme wie ursprünglich: Wendepunkte (Dreiecke), Berührungspunkte (Kreise)
-if len(spinodal_x) or len(spinodal_y):
-    ax_pts.scatter(spinodal_x, spinodal_y, marker='^', c='orange', s=16)
-if len(contact_x) or len(contact_y):
-    ax_pts.scatter(contact_x, contact_y, marker='o', c='orange', s=16)
+# Wenn Mittelwertspunkt existiert, direkt in die Listen einfügen (vor dem Sortieren!)
+if middle_phi is not None:
+    contact_x.append(middle_phi)
+    contact_y.append(target_chi)
+    spinodal_x.append(middle_phi)
+    spinodal_y.append(target_chi)
 
+# Danach sortieren
+spinodal_sorted = sorted(zip(spinodal_y, spinodal_x))
+contact_sorted = sorted(zip(contact_y, contact_x))
+
+# Mittelwertpunkt explizit als Eintrag mit zwei φ-Werten einfügen
+if middle_phi is not None:
+    contact_sorted.append((target_chi, middle_phi - 1e-10))  # linker φ2
+    contact_sorted.append((target_chi, middle_phi + 1e-10))  # rechter φ2
+    contact_sorted = sorted(contact_sorted)
+
+    spinodal_sorted.append((target_chi, middle_phi - 1e-10))
+    spinodal_sorted.append((target_chi, middle_phi + 1e-10))
+    spinodal_sorted = sorted(spinodal_sorted)
+
+# Entpacken
+spinodal_y_sorted, spinodal_x_sorted = zip(*spinodal_sorted)
+contact_y_sorted, contact_x_sorted = zip(*contact_sorted)
+
+
+# Neu: Sortiere nach χ (y), dann trenne in linke/rechte Äste nach φ (x)
+from collections import defaultdict
+
+def getrennte_äste(punkte):
+    punkte_pro_chi = defaultdict(list)
+    for chi_val, phi_val in zip(*punkte):
+        punkte_pro_chi[chi_val].append(phi_val)
+
+    chi_liste, phi_links, phi_rechts = [], [], []
+    for chi_val in sorted(punkte_pro_chi.keys()):
+        phi_vals = sorted(punkte_pro_chi[chi_val])
+        if len(phi_vals) == 2:
+            phi_l, phi_r = phi_vals
+        elif len(phi_vals) == 1:
+            # Sonderfall: Mittelwertpunkt → ignoriere ihn für die Linienverbindung
+            continue
+        else:
+            continue
+        chi_liste.append(chi_val)
+        phi_links.append(phi_l)
+        phi_rechts.append(phi_r)
+    return phi_links, phi_rechts, chi_liste
+
+# Spinodale (durchgezogene Linie)
+spinodal_links, spinodal_rechts, chi_vals = getrennte_äste((spinodal_y_sorted, spinodal_x_sorted))
+ax_pts.plot(spinodal_links, chi_vals, linestyle='-', color='dimgray', label='Spinodale (links)')
+ax_pts.plot(spinodal_rechts, chi_vals, linestyle='-', color='dimgray', label='Spinodale (rechts)')
+
+# Binodale (gestrichelte Linie)
+contact_links, contact_rechts, chi_vals = getrennte_äste((contact_y_sorted, contact_x_sorted))
+ax_pts.plot(contact_links, chi_vals, linestyle='--', color='gray', label='Binodale (links)')
+ax_pts.plot(contact_rechts, chi_vals, linestyle='--', color='gray', label='Binodale (rechts)')
+
+# Schattierung der Regionen: instabil (dunkler), metastabil (heller)
+ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='gray', alpha=0.25, label='instabil (zwischen Spinodalen)')
+ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='lightgray', alpha=0.25, label='metastabil (zwischen Binodalen)')
+
+# Neuer Punkt (Mittelpunkt bei χ = 0.866)
+if middle_phi is not None:
+    ax_pts.scatter([middle_phi], [target_chi], marker='o', c='black', s=10, label='Mittelpunkt bei χ=0.866')
 
 ax_pts.set_xlabel(r'$\varphi_2$')
 ax_pts.set_ylabel(r'$\chi$')
@@ -243,4 +309,6 @@ print("Exportiert:", path_main)
 path_pts = os.path.join('flory', 'flory_huggins_points.pdf')
 fig_pts.savefig(path_pts, format='pdf', bbox_inches='tight')
 print("Exportiert:", path_pts)
+
+ax_pts.legend()
 plt.show()
