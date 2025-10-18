@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from numba import njit
 
 # LaTeX-Rendering aktivieren
@@ -216,11 +217,20 @@ for chi in tqdm(chi_values, desc="χ-Sweep"):
     if w_phi.size:
         ax_main.scatter(w_phi, w_G, marker='^', c='dimgray', s=10, zorder=5)
 
+
     # Marker: Berührungspunkte (Kreise, grau)
     ax_main.scatter([a_phi, b_phi], [G(a_phi), G(b_phi)], marker='o', c='gray', s=10, zorder=6)
 
-ax_main.set_xlabel(r'$\varphi_2$ (Polymeranteil)')
-ax_main.set_ylabel(r'$\Delta G^{m} / RT$')
+# Legende fuer den Sweep-Plot (eine graue Linie, Dreieck fuer Wendepunkte, Punkt fuer Beruehrungspunkte)
+legend_elements = [
+    Line2D([0], [0], color='lightgray', linewidth=0.8, label=r'$\Delta G^{m}/(RT)$'),
+    Line2D([0], [0], marker='^', linestyle='None', markerfacecolor='dimgray', markeredgecolor='dimgray', label='Wendepunkte'),
+    Line2D([0], [0], marker='o', linestyle='None', markerfacecolor='gray', markeredgecolor='gray', label='Berührungspunkte'),
+]
+ax_main.legend(handles=legend_elements, loc='best')
+
+ax_main.set_xlabel(r'$\varphi_2$')
+ax_main.set_ylabel(r'$\Delta G^{m} / (RT)$')
 ax_main.grid(True)
 
 # =============================
@@ -295,8 +305,8 @@ ax_pts.plot(contact_links, chi_vals, linestyle='--', color='gray', label='Binoda
 ax_pts.plot(contact_rechts, chi_vals, linestyle='--', color='gray')
 
 # Schattierung der Regionen: instabil (dunkler), metastabil (heller)
-ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='dimgray', alpha=0.15, label='instabil (zwischen Spinodalen)')
-ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='gray', alpha=0.08, label='metastabil (zwischen Binodalen)')
+ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='dimgray', alpha=0.60, label='instabil (zwischen Spinodalen)')
+ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='gray', alpha=0.20, label='metastabil (zwischen Binodalen)')
 
 if middle_phi is not None:
     ax_pts.scatter([middle_phi], [target_chi], marker='o', c='black', s=10, label=r'$\chi_c \approx 0.866$')

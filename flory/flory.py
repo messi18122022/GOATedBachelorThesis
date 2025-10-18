@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 # LaTeX-Aktivierung für matplotlib
 plt.rcParams.update({
@@ -219,9 +220,13 @@ if np.isfinite(m_tan) and (phi_a < phi_b):
     x_full = np.array([0.0, 1.0])
     ax_main.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=1.0, label='Gemeinsame Tangente')
     ax_main.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green', s=10, label='Berührpunkte')
-ax_main.set_xlabel(r'$\varphi_2$')
-ax_main.set_ylabel(r'$\Delta G^{m} / RT$')
-ax_main.legend(fontsize='small')
+# benutzerdefinierte Legende (graue Linie, Dreieck, Punkt)
+legend_handles = [
+    Line2D([0], [0], color='grey', linewidth=1.0, label=r'$\Delta G^{m} / (RT)$'),
+    Line2D([0], [0], marker='^', linestyle='None', color='black', markersize=6, label='Wendepunkte'),
+    Line2D([0], [0], marker='o', linestyle='None', color='black', markersize=6, label='Berührpunkte'),
+]
+ax_main.legend(handles=legend_handles, fontsize='small')
 ax_main.grid(True)
 ax_main.set_ylim(-0.15, 0.05)
 path_main = os.path.join('flory', 'abb2_12_main.pdf')
@@ -251,7 +256,7 @@ if np.isfinite(m_tan) and (phi_a < phi_b):
 ax_z1.set_xlim(0.0, 0.006)
 ax_z1.set_ylim(-0.0005, 0.0001)
 ax_z1.set_xlabel(r'$\varphi_2$')
-ax_z1.set_ylabel(r'$\Delta G^{m} / RT$')
+ax_z1.set_ylabel(r'$\Delta G^{m} / (RT)$')
 ax_z1.grid(True)
 path_z1 = os.path.join('flory', 'abb2_12_zoom_left.pdf')
 fig_z1.savefig(path_z1, format='pdf', bbox_inches='tight')
