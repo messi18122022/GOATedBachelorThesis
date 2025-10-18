@@ -3,6 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit
 
+# LaTeX-Rendering aktivieren
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Computer Modern Roman"],
+})
+plt.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
+
 # Fortschrittsbalken (tqdm), mit Fallback falls nicht installiert
 try:
     from tqdm import tqdm
@@ -174,7 +182,7 @@ def common_tangent(chi, G, dG_dphi, d2G_dphi2):
 # =============================
 os.makedirs('flory', exist_ok=True)
 cm_to_inch = 1/2.54
-fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 10*cm_to_inch))
+fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 8*cm_to_inch))
 
 chi_values = np.linspace(CHI_MIN, CHI_MAX, N_CHI)
 
@@ -287,8 +295,8 @@ ax_pts.plot(contact_links, chi_vals, linestyle='--', color='gray', label='Binoda
 ax_pts.plot(contact_rechts, chi_vals, linestyle='--', color='gray')
 
 # Schattierung der Regionen: instabil (dunkler), metastabil (heller)
-ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='dimgray', alpha=0.20, label='instabil (zwischen Spinodalen)')
-ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='gray', alpha=0.14, label='metastabil (zwischen Binodalen)')
+ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='dimgray', alpha=0.15, label='instabil (zwischen Spinodalen)')
+ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='gray', alpha=0.08, label='metastabil (zwischen Binodalen)')
 
 if middle_phi is not None:
     ax_pts.scatter([middle_phi], [target_chi], marker='o', c='black', s=10, label=r'$\chi_c \approx 0.866$')
