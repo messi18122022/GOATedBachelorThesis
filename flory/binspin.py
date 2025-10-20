@@ -241,7 +241,7 @@ middle_phi = 0.241
 # =============================
 # Zweiter Plot: φ2 auf x-Achse, χ auf y-Achse; Dreiecke = Wendepunkte, Kreise = Berührungspunkte
 # =============================
-fig_pts, ax_pts = plt.subplots(figsize=(12*cm_to_inch, 10*cm_to_inch))
+fig_pts, ax_pts = plt.subplots(figsize=(14*cm_to_inch, 10*cm_to_inch))
 
 
 #
@@ -304,11 +304,20 @@ ax_pts.plot(contact_links, chi_vals, linestyle='--', color='gray', label='Binoda
 ax_pts.plot(contact_rechts, chi_vals, linestyle='--', color='gray')
 
 # Schattierung der Regionen: instabil (dunkler), metastabil (heller)
-ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='dimgray', alpha=0.60, label='instabil (zwischen Spinodalen)')
-ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='gray', alpha=0.20, label='metastabil (zwischen Binodalen)')
+ax_pts.fill_betweenx(chi_vals, spinodal_links, spinodal_rechts, color='dimgray', alpha=0.60)
+ax_pts.fill_betweenx(chi_vals, contact_links, contact_rechts, color='gray', alpha=0.20)
 
 if middle_phi is not None:
     ax_pts.scatter([middle_phi], [target_chi], marker='o', c='black', s=10, label=r'$\chi_c \approx 0.866$')
+
+    # Beschriftungen der Regionen direkt im Diagramm
+    ax_pts.text(0.32, 1.22, 'instabil', ha='center', va='center', fontsize=12,
+                bbox=dict(facecolor='white', alpha=0.6, edgecolor='black', boxstyle='round,pad=0.2'))
+    ax_pts.text(0.85, 1.2, 'stabil', ha='center', va='center', fontsize=12,
+                bbox=dict(facecolor='white', alpha=0.6, edgecolor='black', boxstyle='round,pad=0.2'))
+    # Schräger Text entlang der metastabilen Region (leicht im Uhrzeigersinn gedreht)
+    ax_pts.text(0.62, 1.20, 'metastabil', ha='center', va='center', rotation=-60, fontsize=12,
+                bbox=dict(facecolor='white', alpha=0.6, edgecolor='black', boxstyle='round,pad=0.2'))
 
 ax_pts.set_xlabel(r'$\varphi_2$')
 ax_pts.set_ylabel(r'$\chi$')
@@ -318,7 +327,7 @@ ax_pts.set_ylim(0.8, 1.5)
 ax_pts.invert_yaxis()
 ax_pts.grid(True)
 
-ax_pts.legend(loc='center left', bbox_to_anchor=(1.05, 0.5))
+ax_pts.legend(loc='upper right')
 
 path_main = os.path.join('flory', 'flory_huggins_sweep.pdf')
 fig_main.savefig(path_main, format='pdf', bbox_inches='tight')
