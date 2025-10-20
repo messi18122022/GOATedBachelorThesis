@@ -97,6 +97,10 @@ else:
 phi_minima = np.array([phi2[min_left], phi2[min_right]])
 G_minima = np.array([dGm_RT[min_left], dGm_RT[min_right]])
 
+# Gerade durch die beiden Minima (global, fuer Wiederverwendung)
+m_min_global = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
+b_min_global = G_minima[0] - m_min_global * phi_minima[0]
+
 # =============================
 # Gemeinsame Tangente: Mehrstufige Gittersuche + Newton-Verfeinerung
 # =============================
@@ -198,21 +202,31 @@ m_tan = (G(phi_b) - G(phi_a)) / (phi_b - phi_a)
 b_tan = G(phi_a) - m_tan * phi_a
 
 # =============================
+# Exakte y-Werte bei phi2 = 0.4 fuer rote (Minima-Gerade) und gruene (Tangente) Linie
+# =============================
+phi_query = 0.4
+y_red_query = m_min_global * phi_query + b_min_global
+y_green_query = m_tan * phi_query + b_tan
+
+# Ausgabe mit hoher Praezision
+print(f"y (rot, Minima-Gerade) bei phi2 = {phi_query}: {y_red_query:.12f}")
+print(f"y (gruen, gemeinsame Tangente) bei phi2 = {phi_query}: {y_green_query:.12f}")
+
+# =============================
 # PLOTS: drei einzelne PDFs (Grössen in cm)
 # =============================
 os.makedirs('flory', exist_ok=True)
 cm_to_inch = 1/2.54
 
+#
 # MAIN (16 cm × 6.5 cm)
 fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 6.5*cm_to_inch))
 ax_main.plot(phi2, dGm_RT, label=r'$\Delta G^{m} / RT$', linewidth=1.0)
-# Gerade durch die beiden Minima (über gesamten Achsenbereich, sichtbar)
-m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
-b_min = G_minima[0] - m_min * phi_minima[0]
+# Gerade durch die beiden Minima (ueber gesamten Achsenbereich, sichtbar, global verwendet)
 x_full = np.array([0.0, 1.0])
-ax_main.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=1.0, label='Minima verbunden')
+ax_main.plot(x_full, m_min_global * x_full + b_min_global, '--', color='red', linewidth=1.0, label='Minima verbunden')
 # Bereich markieren, wo ΔGm/RT unter der roten Linie liegt
-y_line = m_min * phi2 + b_min
+y_line = m_min_global * phi2 + b_min_global
 ax_main.fill_between(phi2, dGm_RT, y_line, where=(dGm_RT < y_line), color='red', alpha=0.2)
 ax_main.scatter(phi_minima, G_minima, color='red', s=10, label='Minima')
 if len(wendepunkte_phi2) >= 1:
@@ -229,6 +243,9 @@ if np.isfinite(m_tan) and (phi_a < phi_b):
     x_full = np.array([0.0, 1.0])
     ax_main.plot(x_full, m_tan * x_full + b_tan, '--', color='green', linewidth=1.0, label='Gemeinsame Tangente')
     ax_main.scatter([phi_a, phi_b], [G(phi_a), G(phi_b)], color='green', s=10, label='Berührpunkte')
+    # Markierungen der exakten y-Werte bei phi2=0.4
+    ax_main.scatter([phi_query], [y_red_query], color='red', s=15, zorder=3)
+    ax_main.scatter([phi_query], [y_green_query], color='green', s=15, zorder=3)
 ax_main.set_xlabel(r'$\varphi_2$')
 ax_main.set_ylabel(r'$\Delta G^{m} / (RT)$')
 ax_main.legend(fontsize='small')
@@ -240,11 +257,9 @@ fig_main.savefig(path_main, format='pdf', bbox_inches='tight')
 # ZOOM LINKS (16 cm × 6.5 cm)
 fig_z1, ax_z1 = plt.subplots(figsize=(16*cm_to_inch, 6.5*cm_to_inch))
 ax_z1.plot(phi2, dGm_RT, linewidth=1.0)
-# Gerade durch die beiden Minima (über gesamten Achsenbereich)
-m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
-b_min = G_minima[0] - m_min * phi_minima[0]
+# Gerade durch die beiden Minima (ueber gesamten Achsenbereich)
 x_full = np.array([0.0, 1.0])
-ax_z1.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=1.0)
+ax_z1.plot(x_full, m_min_global * x_full + b_min_global, '--', color='red', linewidth=1.0)
 ax_z1.scatter(phi_minima, G_minima, color='red')
 if len(wendepunkte_phi2) >= 2:
     # Gerade durch Wendepunkte über gesamten Bereich
@@ -283,14 +298,12 @@ fig_z1.savefig(path_z1, format='pdf', bbox_inches='tight')
 # ZOOM RECHTS (16 cm × 6.5 cm, kein y-Label)
 fig_z2, ax_z2 = plt.subplots(figsize=(16*cm_to_inch, 6.5*cm_to_inch))
 ax_z2.plot(phi2, dGm_RT, linewidth=1.0)
-# Gerade durch die beiden Minima (über gesamten Achsenbereich)
-m_min = (G_minima[1] - G_minima[0]) / (phi_minima[1] - phi_minima[0])
-b_min = G_minima[0] - m_min * phi_minima[0]
+# Gerade durch die beiden Minima (ueber gesamten Achsenbereich)
 x_full = np.array([0.0, 1.0])
-ax_z2.plot(x_full, m_min * x_full + b_min, '--', color='red', linewidth=1.0)
+ax_z2.plot(x_full, m_min_global * x_full + b_min_global, '--', color='red', linewidth=1.0)
 
 # Bereich markieren, wo ΔGm/RT unter der roten Linie liegt
-y_line = m_min * phi2 + b_min
+y_line = m_min_global * phi2 + b_min_global
 ax_z2.fill_between(phi2, dGm_RT, y_line, where=(dGm_RT < y_line), color='red', alpha=0.2)
 ax_z2.scatter(phi_minima, G_minima, color='red')
 if len(wendepunkte_phi2) >= 2:
