@@ -39,7 +39,7 @@ mpl.rcParams['savefig.transparent'] = True
 # =============================
 # Konfiguration
 # =============================
-BASE_DIR = "/Users/musamoin/Desktop/BA_HS25/experiments"
+BASE_DIR = "/Users/musamoin/Desktop/BA-HS25/experiments"
 FILE_KEYWORD = "Mastersizer"
 EXCEL_EXTS = {".xlsx", ".xls", ".xlsm"}
 
