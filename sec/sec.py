@@ -276,7 +276,7 @@ def plot_and_save(x: pd.Series, y: pd.Series, x_label: str, y_label: str, src: P
 
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    plt.title(src.stem)
+    plt.ylim(top=17)
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
@@ -298,7 +298,7 @@ def process_file(csv_path: Path, fluss: float) -> Optional[Path]:
 # Kalibrationspunkte sammeln und Fit durchfuehren
 def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
     """Sammelt (Ve, log10(M)) Punkte aus allen Blue/Green/Red-Dateien und fit:
-    log10(M) = a + b * Ve. Gibt Pfad zum erzeugten PDF zurueck.
+    log10(M) = a + b * Ve. Gibt Pfad zur erzeugten JSON-Datei zurueck (ohne Plot).
     Zuordnung: kleinere Ve <-> groessere MP (je Farbe). Nur die ersten 4 Peaks je Farbe
     werden beruecksichtigt und in der Reihenfolge (Ve aufsteigend) den MP-Werten
     (absteigend) gemappt.
@@ -310,7 +310,7 @@ def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
     files = sorted([p for p in base.iterdir() if p.suffix.lower() == ".csv"])
     if not files:
         return None
-
+    
     for csv_path in files:
         name = csv_path.stem.lower()
         key = None
@@ -355,33 +355,34 @@ def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
     ss_tot = float(np.sum((logM_arr - np.mean(logM_arr))**2))
     r2 = 1.0 - ss_res/ss_tot if ss_tot > 0 else float("nan")
 
-    # Plot
-    out_path = base / "calibration.pdf"
-    plt.figure()
-    # Punkte farblich nach Satz
-    for k, pts in color_points.items():
-        if not pts:
-            continue
-        v = [p[0] for p in pts]
-        m = [p[1] for p in pts]
-        plt.scatter(v, m, label=k)
-    # Fit-Kurve (kubisch)
-    xfit = np.linspace(min(ve_arr), max(ve_arr), 400)
-    yfit = np.polyval(coeffs, xfit)
-    plt.plot(xfit, yfit)
-    plt.xlabel("Elutionsvolumen V_E [mL]")
-    plt.ylabel("log10(M)")
-    plt.title("Kalibration: log10(M) = a + b * V_E + c * V_E^2 + d * V_E^3")
-    eq = (
-        f"log10(M) = {a:.3f} + {b:.3f}*V_E + {c:.3f}*V_E^2 + {d:.3f}*V_E^3\n"
-        f"R^2 = {r2:.4f} (n={len(ve_all)})"
-    )
-    plt.annotate(eq, xy=(0.02, 0.98), xycoords='axes fraction', va='top')
-    if any(color_points[k] for k in color_points):
+    # Ve-Min/Max berechnen fuer JSON
+    ve_min = float(np.min(ve_arr))
+    ve_max = float(np.max(ve_arr))
+
+    # Plot fuer Kalibration: farbcodierte Punkte (Marker 'x') und Fit-Kurve
+    cal_pdf = base / "calibration_points.pdf"
+    try:
+        plt.figure()
+        # Punkte farblich/marker nach Satz
+        color_map = {"green": "green", "red": "red", "blue": "blue"}
+        for k, pts in color_points.items():
+            if not pts:
+                continue
+            v = [p[0] for p in pts]
+            m = [p[1] for p in pts]
+            plt.scatter(v, m, marker='x', color=color_map.get(k, None), label=k)
+        # Fit-Kurve (kubisch)
+        xfit = np.linspace(float(np.min(ve_arr)), float(np.max(ve_arr)), 400)
+        yfit = np.polyval(coeffs, xfit)
+        plt.plot(xfit, yfit, label="Fit")
+        plt.xlabel("Elutionsvolumen V_E [mL]")
+        plt.ylabel("log10(M)")
         plt.legend()
-    plt.tight_layout()
-    plt.savefig(out_path, format="pdf")
-    plt.close()
+        plt.tight_layout()
+        plt.savefig(cal_pdf, format="pdf")
+        plt.close()
+    except Exception as e:
+        print(f"Konnte {cal_pdf.name} nicht schreiben: {e}", file=sys.stderr)
 
     # Koeffizienten als JSON speichern
     try:
@@ -393,10 +394,13 @@ def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
             "c": float(c),
             "d": float(d),
             "r2": float(r2),
-            "n": int(len(ve_all))
+            "n": int(len(ve_all)),
+            "Ve_min_mL": ve_min,
+            "Ve_max_mL": ve_max,
         }
         with open(base / "calibration_coeffs.json", "w") as f:
             json.dump(coeffs_json, f, indent=2)
+        print(f"✔ Gespeichert: {base / 'calibration_coeffs.json'}")
     except Exception as e:
         print(f"Konnte calibration_coeffs.json nicht schreiben: {e}", file=sys.stderr)
 
@@ -414,8 +418,7 @@ def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
         print(f"Konnte calibration_points.csv nicht schreiben: {e}", file=sys.stderr)
 
     print(f"Kalibration: a={a:.6f}, b={b:.6f}, R^2={r2:.4f}")
-    print(f"✔ Gespeichert: {out_path}")
-    return out_path
+    return base / "calibration_coeffs.json"
 
 
 def main():
