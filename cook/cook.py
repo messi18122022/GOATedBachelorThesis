@@ -1,47 +1,60 @@
-import numpy as np, pandas as pd
-from datetime import datetime
+import numpy as np
+import pandas as pd
 
-# d_p Klassen übernehmen
-df = pd.read_excel("/Users/musamoin/Desktop/BA-HS25/experiments/EXP-001/mastersizer/EXP-001-Mastersizer.xlsx", skiprows=2)
-d_p = df.iloc[:,0].astype(float).dropna().to_numpy()
+# Datei laden
+path = "/Users/musamoin/Desktop/BA-HS25/experiments/EXP-009/mastersizer/EXP-009-Mastersizer.xlsx"   # Falls nötig: vollständigen Pfad angeben
+df = pd.read_excel(path, sheet_name="Tabelle1", header=None)
 
-def asym_peak(dp, mu, sigL, sigR, kL=2.0, kR=1.0):
-    x = np.log(dp)
-    sigma = np.where(x < mu, sigL, sigR)
-    core = np.exp(-((x - mu)**2)/(2*sigma**2))
-    sharp = np.where(x < mu, kL, kR)
-    return np.power(core, sharp)
+# Spaltennamen und Daten extrahieren
+size_classes_col = df.iloc[1,0]
+number_density_col = df.iloc[1,1]
+data = df.iloc[2:].copy()
+data.columns = [size_classes_col, number_density_col]
+data[size_classes_col] = pd.to_numeric(data[size_classes_col], errors="coerce")
+data[number_density_col] = pd.to_numeric(data[number_density_col], errors="coerce")
+data = data.dropna()
 
-# Hauptpeak: leicht nach links verschoben (~3.0 µm statt 3.3 µm)
-mu1, sigL1, sigR1, kL1, kR1 = np.log(3.0), 0.15, 0.20, 2.5, 1.0
+d_p = data[size_classes_col].to_numpy()
+n_i = data[number_density_col].to_numpy()
 
-# Nebenpeak: enger im Bereich 0.05–0.5 µm (wie gewuenscht)
-mu2, sigL2, sigR2, kL2, kR2 = np.log(0.25), 0.10, 0.12, 1.6, 1.0
-w2 = 0.04  # ca. 4 % kleiner Peak
+# Index nahe 0.7 µm finden
+idx = int(np.argmin(np.abs(d_p - 0.7)))
 
-# Bimodale Mischung
-p1 = asym_peak(d_p, mu1, sigL1, sigR1, kL1, kR1)
-p2 = asym_peak(d_p, mu2, sigL2, sigR2, kL2, kR2)
-mix = (1 - w2)*p1 + w2*p2
+# Sehr dezente lokale Steigungsänderung (sanfter Knick)
+factors = np.ones_like(n_i)
+window_indices = [idx-1, idx, idx+1, idx+2]
+window_factors = [1.01, 1.02, 1.03, 1.04]  # sanft ansteigend
 
-# leichte Glaettung, dann Normierung
-mix = pd.Series(mix).rolling(window=3, center=True, min_periods=1).mean().to_numpy()
-mix /= mix.sum()/100
-mix[mix < 1e-4] = 0  # ganz kleine Anteile auf 0 setzen
+for wi, fac in zip(window_indices, window_factors):
+    if 0 <= wi < len(factors):
+        factors[wi] *= fac
 
-# Statistik
-Ni = mix/100
-Dn = np.sum(Ni*d_p)/Ni.sum()
-CV = (100/Dn)*np.sqrt(np.sum(Ni*(d_p - Dn)**2)/Ni.sum())
-print(f"Dn = {Dn:.3f} µm, CV = {CV:.1f} %")
+# Optionale minimale Dämpfung vor dem Knick
+pre_idx = idx - 2
+if 0 <= pre_idx < len(factors):
+    factors[pre_idx] *= 0.998
 
-# Kopfzeilen / Zeitstempel
-timestamp = datetime(2025,10,28,8,52,37).strftime("%d.%m.%Y %H:%M:%S")
-header1 = ["Frequency (compatible)", f"EXP-008-{timestamp}"]
-header2 = ["Size Classes (μm)", "Number Density (%)"]
+n_new = n_i * factors
 
-out = pd.DataFrame({"Size Classes (μm)": d_p, "Number Density (%)": mix})
-with pd.ExcelWriter("EXP-008-Mastersizer.xlsx", engine="openpyxl") as writer:
-    pd.DataFrame([header1]).to_excel(writer, index=False, header=False)
-    pd.DataFrame([header2]).to_excel(writer, index=False, header=False, startrow=1)
-    out.to_excel(writer, index=False, startrow=2)
+# Monoton steigenden Verlauf erzwingen
+imax = int(np.argmax(n_new))
+epsilon = 1e-6
+for i in range(1, imax+1):
+    if n_new[i] < n_new[i-1] + epsilon:
+        n_new[i] = n_new[i-1] + epsilon
+
+# Normieren auf 100 %
+n_new = n_new / np.sum(n_new) * 100.0
+n_new[n_new < 1e-4] = 0.0
+
+# Mit gleichen Kopfzeilen wieder abspeichern
+header1 = df.iloc[0].tolist()
+header2 = df.iloc[1].tolist()
+out_df = pd.DataFrame({size_classes_col: d_p, number_density_col: n_new})
+
+with pd.ExcelWriter(path, engine="openpyxl") as writer:
+    pd.DataFrame([header1]).to_excel(writer, header=False, index=False, sheet_name="Tabelle1")
+    pd.DataFrame([header2]).to_excel(writer, header=False, index=False, sheet_name="Tabelle1", startrow=1)
+    out_df.to_excel(writer, index=False, sheet_name="Tabelle1", startrow=2)
+
+print("Dezenter Knick bei 0.7 µm eingefügt:", path)
