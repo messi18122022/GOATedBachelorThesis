@@ -37,7 +37,7 @@ import matplotlib as mpl
 XL_PATH = "/Users/musamoin/Desktop/BA-HS25/experiments/EXP-008/mastersizer/EXP-008-Mastersizer.xlsx"  # <— anpassen!
 
 # Achsenlimits: None = automatisch. Fuer x (log-Skala) muessen beide Grenzen > 0 sein.
-X_LIMITS: Optional[Tuple[float, float]] = (0.1, 1) # z.B. (0.05, 500.0)
+X_LIMITS: Optional[Tuple[float, float]] = (0.1, 1.0) # z.B. (0.05, 500.0)
 Y_LIMITS: Optional[Tuple[float, float]] = (-0.1,1)  # z.B. (0.0, 8.0)
 
 FIG_WIDTH_CM = 16.0
@@ -163,43 +163,51 @@ def make_plot(df: pd.DataFrame, Dn: float, cv: float, out_pdf: str) -> None:
     if Y_LIMITS is not None:
         ax.set_ylim(Y_LIMITS)
 
-    from matplotlib.ticker import FuncFormatter
-    # Falls der sichtbare Bereich innerhalb einer Dekade liegt (z.B. 4–10 µm),
-    # zeige Dezimalzahlen statt Zehnerpotenzen.
+    # X-Achsenbeschriftung: immer Dezimalzahlen (keine Zehnerpotenzen)
+    from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+    import math
     xmin, xmax = ax.get_xlim()
-    def _fmt_decimal(x, pos):
-        return f"{x:.0f}" if x >= 1 else f"{x:g}"
-    if xmin >= 1 and xmax <= 10:
-        ints = [i for i in range(int(np.ceil(xmin)), int(np.floor(xmax)) + 1)]
-        if len(ints) >= 2:
-            ax.set_xticks(ints)
-            ax.xaxis.set_major_formatter(FuncFormatter(_fmt_decimal))
-        else:
-            ax.xaxis.set_major_formatter(FuncFormatter(_fmt_decimal))
-    else:
-        # Standard: feste Tick-Positionen mit Dezimal-Labels
-        decade_ticks = [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
-        ax.set_xticks(decade_ticks)
-        ax.set_xticklabels([str(t) for t in decade_ticks])
-        ax.xaxis.set_major_formatter(FuncFormatter(_fmt_decimal))
 
-    plt.xlabel(r'Partikelgrösse $d_p$ / \si{\micro\meter}')
+    # Falls der Bereich innerhalb EINER Dekade liegt (z. B. 0.1–1.0 oder 1–10),
+    # setzen wir lineare Ticks mit Schrittweite der jeweiligen Dekade (0.1 bzw. 1 usw.).
+    decade = math.floor(np.log10(xmin))
+    def _plain(x, pos):
+        # Format ohne wissenschaftliche Notation und ohne trailing zeros
+        s = f"{x:.10f}".rstrip('0').rstrip('.')
+        return s
+
+    if xmin >= 10**decade and xmax <= 10**(decade + 1):
+        step = 10**decade
+        start = np.ceil(xmin / step) * step
+        stop = np.floor(xmax / step) * step
+        if stop < start:
+            stop = start
+        ticks = np.arange(start, stop + 0.5 * step, step)
+        ax.xaxis.set_major_locator(FixedLocator(ticks.tolist()))
+        ax.xaxis.set_major_formatter(FuncFormatter(_plain))
+        ax.xaxis.set_minor_formatter(NullFormatter())
+    else:
+        # Fallback: nur Dezimalwerte an den Dekaden anzeigen
+        decade_ticks = [1e-2, 1e-1, 1.0, 10.0, 100.0, 1000.0]
+        ax.xaxis.set_major_locator(FixedLocator(decade_ticks))
+        ax.xaxis.set_major_formatter(FuncFormatter(_plain))
+        ax.xaxis.set_minor_formatter(NullFormatter())
+
+    # plt.xlabel(r'Partikelgrösse $d_p$ / \si{\micro\meter}')
     plt.ylabel(r'Partikelanteil $n$ / \si{\percent}')
 
-    # Textbox mit Dn und CV (oben rechts)
-    text = (
-        rf"$D_{{n}} = {Dn:.2f}\,\si{{\micro\meter}}$" "\n" rf"$CV = {cv:.2f}\,\si{{\percent}}$"
-    )
-    ax.text(0.98, 0.95, text, transform=ax.transAxes, ha="right", va="top", bbox=dict(boxstyle="round", fc="white"))
-
-    # Hilfslinie bei Dn
+    # Hilfslinie bei Dn (nicht X-Autoscale auslösen)
     try:
-        ymin, ymax = plt.ylim()
-        plt.vlines(Dn, ymin, ymax, linestyles="dashed", linewidth=1, color="black")
+        ymin, ymax = ax.get_ylim()
+        ax.vlines(Dn, ymin, ymax, linestyles="dashed", linewidth=1, color="black")
     except Exception:
         pass
 
-    # (Achsenlimits werden nun weiter oben gesetzt)
+    # Nach hinzugefügten Artists können sich Limits wieder automatisch erweitern -> Limits erzwingen
+    if X_LIMITS is not None and X_LIMITS[0] > 0 and X_LIMITS[1] > 0:
+        ax.set_xlim(X_LIMITS)
+    if Y_LIMITS is not None:
+        ax.set_ylim(Y_LIMITS)
 
     plt.tight_layout()
     plt.savefig(out_pdf, transparent=True, bbox_inches='tight')
