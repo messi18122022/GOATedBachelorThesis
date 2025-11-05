@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Lese ein einzelnes Mastersizer-Excel (Size Classes / Number Density), berechne d50 (Median) und CV,
-und erstelle einen Plot (x: Size classes, y: Number distr. (%)). Der Plot enthaelt d50 und CV
-und wird als gleichnamiges PDF im selben Ordner gespeichert.
+Liest genau EINE Mastersizer-Excel-Datei (Pfad im Script angeben oder via CLI),
+berechnet Dn (zahlenmittlerer Durchmesser) und CV und erstellt einen Plot
+(x: Size classes, y: Number distr. (%)).
 
-Aufruf:
-    python script.py /pfad/zu/DEINEM_Mastersizer.xlsx
-oder (ohne Argument) Konstante INPUT_XLS unten anpassen.
+Der Plot enthaelt KEINE Legende. Optional koennen x- und y-Achsenlimits gesetzt
+werden. Die Ausgabe ist ein gleichnamiges PDF im selben Ordner.
 
-Hinweis zu d50:
-- Median ueber kumulierte Verteilung mit linearer Interpolation zwischen Klassenmitten.
+Hinweis zu Dn:
+- Dn ist der zahlenmittlere Durchmesser: Dn = Summe(n_i * d_{p,i}) / Summe(n_i).
+- In unserem Code ist Dn identisch mit dem gewichteten arithmetischen Mittel \(\mu\)
+  (Gewichte = Number-\%); vgl. Kap. 2.8.2.
 
 CV-Definition:
-- CV (%) = 100 * sigma / mu, mit mu als gewichtetem arithmetischem Mittel und sigma als
-  entsprechender Standardabweichung (beides gewichtet).
+- CV (%) = 100 * sigma / mu, mit mu als gewichtetem arithmetischem Mittel der
+  Partikelgroessen und sigma als zugehoeriger Standardabweichung (ebenfalls gewichtet).
+
+Getestet mit Dateien im Stil von EXP-001-Mastersizer.xlsx.
 """
 
 from __future__ import annotations
@@ -27,6 +30,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
+# =============================
+# Konfiguration
+# =============================
+# Pfad zur EINEN zu verarbeitenden Excel-Datei (kann via CLI ueberschrieben werden)
+XL_PATH = "/Users/musamoin/Desktop/BA-HS25/experiments/EXP-008/mastersizer/EXP-008-Mastersizer.xlsx"  # <— anpassen!
+
+# Achsenlimits: None = automatisch. Fuer x (log-Skala) muessen beide Grenzen > 0 sein.
+X_LIMITS: Optional[Tuple[float, float]] = (0.1, 1) # z.B. (0.05, 500.0)
+Y_LIMITS: Optional[Tuple[float, float]] = (-0.1,1)  # z.B. (0.0, 8.0)
+
+FIG_WIDTH_CM = 16.0
+FIG_HEIGHT_CM = 6.5
+
 # LaTeX/siunitx aktivieren und Transparenz fuer Saves
 mpl.rcParams.update({
     'text.usetex': True,
@@ -35,27 +51,20 @@ mpl.rcParams.update({
 })
 mpl.rcParams['savefig.transparent'] = True
 
-# =============================
-# Konfiguration
-# =============================
-# Gib hier optional ein Default-File an, falls kein CLI-Argument uebergeben wird:
-INPUT_XLS = "/Users/musamoin/Desktop/BA_HS25/experiments/EXP-004/mastersizer/EXP-004-Mastersizer.xlsx"
-
-EXCEL_EXTS = {".xlsx", ".xls", ".xlsm"}
-FIG_WIDTH_CM = 7.0
-FIG_HEIGHT_CM = 6.5
-
-DEFAULT_XLIM = (0.1,10)  # z.B. (0.01, 1000)
-DEFAULT_YLIM = (-0.1,0.2)  # z.B. (0, 20)
 
 def cm_to_in(x: float) -> float:
     return x / 2.54
 
+
 # =============================
-# Parsen & Berechnen
+# Einlesen & Kennwerte
 # =============================
 
 def _try_parse_by_header_markers(xl_path: str) -> Optional[pd.DataFrame]:
+    """Versuche, die Daten zu finden, indem wir die Kopfzeile explizit suchen.
+    Erwarte eine Zeile mit (ungefaehr) "Size Classes" und "Number Density".
+    Liefert DataFrame mit Spalten ["Size", "Number"], oder None.
+    """
     try:
         raw = pd.read_excel(xl_path, header=None, dtype=object)
     except Exception:
@@ -74,6 +83,7 @@ def _try_parse_by_header_markers(xl_path: str) -> Optional[pd.DataFrame]:
 
     data = raw.iloc[header_row + 1 :, :2].copy()
     data.columns = ["Size", "Number"]
+
     data["Size"] = pd.to_numeric(data["Size"], errors="coerce")
     data["Number"] = pd.to_numeric(data["Number"], errors="coerce")
     data = data.dropna()
@@ -82,9 +92,11 @@ def _try_parse_by_header_markers(xl_path: str) -> Optional[pd.DataFrame]:
         return None
     return data.reset_index(drop=True)
 
+
 def _try_parse_by_fixed_skip(xl_path: str) -> Optional[pd.DataFrame]:
+    """Fallback fuer bekannte Struktur: 2 Kopfzeilen, dann zwei Spalten (Size, Number)."""
     try:
-        df = pd.read_excel(xl_path, skiprows=2, names=["Size", "Number"])
+        df = pd.read_excel(xl_path, skiprows=2, names=["Size", "Number"])  # beobachtetes Format
         df["Size"] = pd.to_numeric(df["Size"], errors="coerce")
         df["Number"] = pd.to_numeric(df["Number"], errors="coerce")
         df = df.dropna()
@@ -95,7 +107,9 @@ def _try_parse_by_fixed_skip(xl_path: str) -> Optional[pd.DataFrame]:
     except Exception:
         return None
 
+
 def load_mastersizer_table(xl_path: str) -> pd.DataFrame:
+    """Lade die Tabelle mit Spalten [Size, Number] als floats (Size in µm, Number in %)."""
     df = _try_parse_by_header_markers(xl_path)
     if df is None:
         df = _try_parse_by_fixed_skip(xl_path)
@@ -106,6 +120,7 @@ def load_mastersizer_table(xl_path: str) -> pd.DataFrame:
     if df["Number"].max() <= 1.0:
         df["Number"] = df["Number"] * 100.0
     return df
+
 
 def weighted_mean_and_std(size: pd.Series, number: pd.Series) -> Tuple[float, float]:
     w = number.astype(float)
@@ -118,42 +133,19 @@ def weighted_mean_and_std(size: pd.Series, number: pd.Series) -> Tuple[float, fl
     sigma = np.sqrt(var)
     return mu, sigma
 
-def median_from_discrete_classes(size: pd.Series, number: pd.Series) -> float:
-    w = number.astype(float)
-    x = size.astype(float)
-    order = np.argsort(x.values)
-    x = x.values[order]
-    w = w.values[order]
 
-    W = w.sum()
-    if W <= 0:
-        raise ValueError("Summe der Gewichte ist 0.")
-
-    F = np.cumsum(w) / W
-    idx = np.searchsorted(F, 0.5)
-
-    if idx == 0:
-        return float(x[0])
-    if idx >= len(x):
-        return float(x[-1])
-
-    x0, x1 = x[idx - 1], x[idx]
-    F0, F1 = F[idx - 1], F[idx]
-    if F1 == F0:
-        return float((x0 + x1) / 2.0)
-    return float(x0 + (0.5 - F0) / (F1 - F0) * (x1 - x0))
-
-def compute_metrics(df: pd.DataFrame) -> Tuple[float, float, float]:
-    d50 = median_from_discrete_classes(df["Size"], df["Number"])
+def compute_metrics(df: pd.DataFrame) -> Tuple[float, float]:
     mu, sigma = weighted_mean_and_std(df["Size"], df["Number"])
-    cv = 100.0 * sigma / mu if mu != 0 else float("nan")
-    return d50, mu, cv
+    Dn = mu
+    cv = 100.0 * sigma / Dn if Dn != 0 else float("nan")
+    return Dn, cv
+
 
 # =============================
-# Plotten
+# Plot
 # =============================
 
-def make_plot(df: pd.DataFrame, d50: float, cv: float, title: str, out_pdf: str) -> None:
+def make_plot(df: pd.DataFrame, Dn: float, cv: float, out_pdf: str) -> None:
     fig = plt.figure(figsize=(cm_to_in(FIG_WIDTH_CM), cm_to_in(FIG_HEIGHT_CM)))
     ax = plt.gca()
     ax.set_facecolor('none')
@@ -162,77 +154,91 @@ def make_plot(df: pd.DataFrame, d50: float, cv: float, title: str, out_pdf: str)
     plt.grid(True, which="both", linestyle="-", linewidth=0.2, color="black", alpha=0.5)
     plt.xscale("log")
 
-    from matplotlib.ticker import ScalarFormatter
-    formatter = ScalarFormatter()
-    formatter.set_scientific(False)
-    formatter.set_useOffset(False)
-    ax.xaxis.set_major_formatter(formatter)
-    ticks = [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
-    labels = ["0.01", "0.1", "1.0", "10.0", "100.0", "1000.0"]
-    ax.set_xticks(ticks)
-    ax.set_xticklabels(labels)
-    if DEFAULT_XLIM is not None:
-        ax.set_xlim(DEFAULT_XLIM)
-    if DEFAULT_YLIM is not None:
-        ax.set_ylim(DEFAULT_YLIM)
+    # Achsenlimits anwenden (optional) – X zuerst, damit Tick-Formatierung drauf reagieren kann
+    if X_LIMITS is not None:
+        if X_LIMITS[0] <= 0 or X_LIMITS[1] <= 0:
+            print("Warnung: X-Limits fuer log-Skala muessen > 0 sein. Ignoriere X_LIMITS.")
+        else:
+            ax.set_xlim(X_LIMITS)
+    if Y_LIMITS is not None:
+        ax.set_ylim(Y_LIMITS)
 
-    plt.xlabel(r'Partikelgroesse $d_p$ / \si{\micro\meter}')
+    from matplotlib.ticker import FuncFormatter
+    # Falls der sichtbare Bereich innerhalb einer Dekade liegt (z.B. 4–10 µm),
+    # zeige Dezimalzahlen statt Zehnerpotenzen.
+    xmin, xmax = ax.get_xlim()
+    def _fmt_decimal(x, pos):
+        return f"{x:.0f}" if x >= 1 else f"{x:g}"
+    if xmin >= 1 and xmax <= 10:
+        ints = [i for i in range(int(np.ceil(xmin)), int(np.floor(xmax)) + 1)]
+        if len(ints) >= 2:
+            ax.set_xticks(ints)
+            ax.xaxis.set_major_formatter(FuncFormatter(_fmt_decimal))
+        else:
+            ax.xaxis.set_major_formatter(FuncFormatter(_fmt_decimal))
+    else:
+        # Standard: feste Tick-Positionen mit Dezimal-Labels
+        decade_ticks = [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
+        ax.set_xticks(decade_ticks)
+        ax.set_xticklabels([str(t) for t in decade_ticks])
+        ax.xaxis.set_major_formatter(FuncFormatter(_fmt_decimal))
+
+    plt.xlabel(r'Partikelgrösse $d_p$ / \si{\micro\meter}')
     plt.ylabel(r'Partikelanteil $n$ / \si{\percent}')
 
+    # Textbox mit Dn und CV (oben rechts)
     text = (
-        rf"$d_{{50}} = {d50:.4g}\,\si{{\micro\meter}}$"
-        "\n"
-        rf"$CV = {cv:.2f}\,\si{{\percent}}$"
+        rf"$D_{{n}} = {Dn:.2f}\,\si{{\micro\meter}}$" "\n" rf"$CV = {cv:.2f}\,\si{{\percent}}$"
     )
-    plt.gca().text(0.98, 0.95, text, transform=plt.gca().transAxes,
-                   ha="right", va="top", bbox=dict(boxstyle="round", fc="white"))
+    ax.text(0.98, 0.95, text, transform=ax.transAxes, ha="right", va="top", bbox=dict(boxstyle="round", fc="white"))
 
+    # Hilfslinie bei Dn
     try:
         ymin, ymax = plt.ylim()
-        plt.vlines(d50, ymin, ymax, linestyles="dashed", linewidth=1, color="black")
+        plt.vlines(Dn, ymin, ymax, linestyles="dashed", linewidth=1, color="black")
     except Exception:
         pass
+
+    # (Achsenlimits werden nun weiter oben gesetzt)
 
     plt.tight_layout()
     plt.savefig(out_pdf, transparent=True, bbox_inches='tight')
     plt.close()
 
+
 def process_file(xl_path: str) -> str:
     df = load_mastersizer_table(xl_path)
-    d50, mu, cv = compute_metrics(df)
+    Dn, cv = compute_metrics(df)
 
     base, _ = os.path.splitext(xl_path)
     out_pdf = base + "_special.pdf"
-    title = os.path.basename(base)
-    make_plot(df, d50, cv, title, out_pdf)
+
+    make_plot(df, Dn, cv, out_pdf)
 
     print(f"OK: {xl_path}")
-    print(f"  d50 = {d50:.6g} µm,  CV = {cv:.3f} %")
+    print(f"  Dn = {Dn:.6g} µm,  CV = {cv:.3f} %")
     print(f"  -> gespeichert: {out_pdf}")
     return out_pdf
 
+
 # =============================
-# Main (einzelnes File)
+# Main
 # =============================
 
-def main(xl_path: str) -> int:
-    if not os.path.isfile(xl_path):
-        print(f"Pfad ist keine Datei: {xl_path}")
-        return 1
-    ext = os.path.splitext(xl_path)[1].lower()
-    if ext not in EXCEL_EXTS:
-        print(f"Unerwartete Dateiendung ({ext}). Erwarte eine Excel-Datei: {EXCEL_EXTS}")
+def main(one_xl_path: Optional[str]) -> int:
+    path = one_xl_path or XL_PATH
+    if not path or not os.path.isfile(path):
+        print("Fehler: Gueltigen Dateipfad angeben (XL_PATH im Script oder als CLI-Argument).")
         return 1
     try:
-        process_file(xl_path)
-        print("Fertig, keine Fehler.")
+        process_file(path)
         return 0
     except Exception as e:
         print(f"FEHLER: {e}")
         return 2
 
+
 if __name__ == "__main__":
-    xls = INPUT_XLS
-    if len(sys.argv) > 1:
-        xls = sys.argv[1]
-    sys.exit(main(xls))
+    # Erlaube optionales Ueberschreiben via CLI: python mastersizer_special.py /pfad/zur/datei.xlsx
+    arg_path = sys.argv[1] if len(sys.argv) > 1 else None
+    sys.exit(main(arg_path))

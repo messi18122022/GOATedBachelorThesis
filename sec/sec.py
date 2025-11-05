@@ -26,6 +26,13 @@ from typing import Optional, Tuple, List
 
 import pandas as pd
 import matplotlib.pyplot as plt
+# Matplotlib: LaTeX + siunitx aktivieren
+plt.rcParams.update({
+    'text.usetex': True,
+    'font.size': 9,
+    'font.family': 'serif',
+    'text.latex.preamble': r'\usepackage{siunitx}'
+})
 import numpy as np
 
 # ------------------------------
@@ -44,23 +51,6 @@ MP_DICT: dict[str, list[float]] = {
     "green": [2930000, 277000, 34800, 3420],
     "red":   [1210000, 127000, 17800, 1620],
 }
-
-# Moegliche Spaltennamen
-VOLUME_CANDIDATES: List[str] = [
-    "Elutionsvolumen", "elutionsvolumen",
-    "ElutionVolume", "elutionvolume", "Elution_Volume",
-    "Volume", "volume", "Volumen", "volumen",
-]
-TIME_CANDIDATES: List[str] = [
-    "Zeit", "zeit",
-    "Time", "time", "t",
-    "Retention Time", "RetentionTime", "retention time", "retention_time",
-]
-SIGNAL_CANDIDATES: List[str] = [
-    "Signal", "signal", "Intensity", "intensity", "Absorbance", "absorbance",
-    "Response", "response", "Detector A", "detector a", "Detector", "detector",
-]
-
 
 def read_csv_robust(path: Path) -> pd.DataFrame:
     """Liest CSV im fixen Agilent-DAD-Format:
@@ -141,7 +131,7 @@ def get_axes_series(
     x = x.iloc[order]
     y = y.iloc[order]
 
-    x_label = f"Elutionsvolumen [mL] (Zeit * {fluss_ml_min} mL/min)"
+    x_label = rf"Elutionsvolumen $V_E$ [\si{{\milli\litre}}] (Zeit $\times$ {fluss_ml_min} \si{{\milli\litre\per\minute}})"
     y_label = "Signal"
     return x, y, x_label, y_label
 
@@ -263,7 +253,7 @@ def plot_and_save(x: pd.Series, y: pd.Series, x_label: str, y_label: str, src: P
     peak_idx = _find_peak_indices(y, min_y=PEAK_MIN_Y, window=md, prominence=PEAK_PROMINENCE, min_sep=PEAK_MIN_SEP, smooth_window=SMOOTH_WINDOW)
 
     out_path = src.with_suffix(".pdf")
-    plt.figure()
+    plt.figure(figsize=(16/2.54, 6.5/2.54))
     plt.plot(x, y)
     # Peaks markieren und Elutionsvolumen anschreiben
     if peak_idx:
@@ -271,12 +261,21 @@ def plot_and_save(x: pd.Series, y: pd.Series, x_label: str, y_label: str, src: P
         yp = y.iloc[peak_idx]
         plt.plot(xp, yp, 'o')
         for xv, yv in zip(xp, yp):
-            plt.annotate(f"{xv:.2f} mL", xy=(xv, yv), xytext=(0, 8), textcoords='offset points',
-                         ha='center', va='bottom', fontsize=8)
+            txt = rf"\SI{{{xv:.2f}}}{{\milli\litre}}"
+            plt.annotate(
+                txt,
+                xy=(xv, yv),
+                xytext=(0, 8),
+                textcoords='offset points',
+                ha='center',
+                va='bottom',
+                fontsize=8,
+                bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='none', alpha=0.6)
+            )
 
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    plt.ylim(top=17)
+    plt.ylim(top=20)
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
@@ -362,7 +361,7 @@ def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
     # Plot fuer Kalibration: farbcodierte Punkte (Marker 'x') und Fit-Kurve
     cal_pdf = base / "calibration_points.pdf"
     try:
-        plt.figure()
+        plt.figure(figsize=(16/2.54, 10/2.54))
         # Punkte farblich/marker nach Satz
         color_map = {"green": "green", "red": "red", "blue": "blue"}
         for k, pts in color_points.items():
@@ -375,8 +374,8 @@ def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
         xfit = np.linspace(float(np.min(ve_arr)), float(np.max(ve_arr)), 400)
         yfit = np.polyval(coeffs, xfit)
         plt.plot(xfit, yfit, label="Fit")
-        plt.xlabel("Elutionsvolumen V_E [mL]")
-        plt.ylabel("log10(M)")
+        plt.xlabel(r"Elutionsvolumen $V_E$ [\si{\milli\litre}]")
+        plt.ylabel(r"$\log_{10}(M)$")
         plt.legend()
         plt.tight_layout()
         plt.savefig(cal_pdf, format="pdf")
