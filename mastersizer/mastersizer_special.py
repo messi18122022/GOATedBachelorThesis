@@ -34,11 +34,11 @@ import matplotlib as mpl
 # Konfiguration
 # =============================
 # Pfad zur EINEN zu verarbeitenden Excel-Datei (kann via CLI ueberschrieben werden)
-XL_PATH = "/Users/musamoin/Desktop/BA-HS25/experiments/EXP-008/mastersizer/EXP-008-Mastersizer.xlsx"  # <— anpassen!
+XL_PATH = "/Users/musamoin/Desktop/BA-HS25/experiments/EXP-017/mastersizer/EXP-017-Mastersizer.xlsx"  # <— anpassen!
 
 # Achsenlimits: None = automatisch. Fuer x (log-Skala) muessen beide Grenzen > 0 sein.
-X_LIMITS: Optional[Tuple[float, float]] = (0.1, 1.0) # z.B. (0.05, 500.0)
-Y_LIMITS: Optional[Tuple[float, float]] = (-0.1,1)  # z.B. (0.0, 8.0)
+X_LIMITS: Optional[Tuple[float, float]] = (0.1, 20) # z.B. (0.05, 500.0)
+Y_LIMITS: Optional[Tuple[float, float]] = (-0.1,0.1)  # z.B. (0.0, 8.0)
 
 FIG_WIDTH_CM = 16.0
 FIG_HEIGHT_CM = 6.5

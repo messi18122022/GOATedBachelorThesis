@@ -2,18 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 Durchsuche rekursiv den Datenpfad nach Excel-Files mit "Mastersizer" im Dateinamen,
-lese die Daten (Size Classes / Number Density), berechne Dn (zahlenmittlerer Durchmesser) und CV,
+lese die Daten (Size Classes / Number Density), berechne Dn (zahlenmittlerer Durchmesser), DV (volumenmittlerer Durchmesser) und PDI_size (= DV / Dn),
 und erstelle fuer jedes File einen Plot (x: Size classes, y: Number distr. (%)).
-Der Plot enthaelt die Werte fuer Dn und CV und wird als gleichnamiges PDF im
+Der Plot enthaelt die Werte fuer Dn, DV und PDI_size und wird als gleichnamiges PDF im
 selben Ordner gespeichert.
 
-Hinweis zu Dn:
-- Dn ist der zahlenmittlere Durchmesser: Dn = Summe(n_i * d_{p,i}) / Summe(n_i).
-- In unserem Code ist Dn identisch mit dem gewichteten arithmetischen Mittel \(\mu\) (Gewichte = Number-\%); vgl. Kap. 2.8.2.
-
-CV-Definition:
-- CV (%) = 100 * sigma / mu, mit mu als gewichtetem arithmetischem Mittel der
-  Partikelgroessen und sigma als zugehoeriger Standardabweichung (ebenfalls gewichtet).
+Definitionen:
+- Dn = D[1,0] (Moment-Ratio-Definition-System)
+- DV = D[4,3]
+- PDI_size = DV / Dn
 
 Getestet mit Dateien im Stil von EXP-001-Mastersizer.xlsx.
 """
@@ -129,16 +126,44 @@ def load_mastersizer_table(xl_path: str) -> pd.DataFrame:
     return df
 
 
-def weighted_mean_and_std(size: pd.Series, number: pd.Series) -> Tuple[float, float]:
+def moment_ratio(size: pd.Series, number: pd.Series, p: int, q: int) -> float:
+    """
+    Berechnet D[p,q] gemäss Moment-Ratio-Definition:
+      - p > q: D[p,q] = [(Σ n_i * X_i^p) / (Σ n_i * X_i^q)]^(1/(p-q))
+      - p = q: D[p,p] = exp( (Σ n_i * X_i^p * ln X_i) / (Σ n_i * X_i^p) )
+    """
     w = number.astype(float)
     x = size.astype(float)
-    W = w.sum()
-    if W <= 0:
-        raise ValueError("Summe der Gewichte ist 0.")
-    mu = float((w * x).sum() / W)
-    var = float((w * (x - mu) ** 2).sum() / W)
-    sigma = np.sqrt(var)
-    return mu, sigma
+    Wp = float((w * (x ** p)).sum())
+    if p > q:
+        Wq = float((w * (x ** q)).sum())
+        if Wq <= 0:
+            return float("nan")
+        ratio = Wp / Wq
+        # Schutz gegen numerische Randfälle
+        if ratio <= 0:
+            return float("nan")
+        return float(ratio ** (1.0 / (p - q)))
+    else:  # p == q
+        # Verwende nur positive x für ln
+        mask = (w > 0) & (x > 0)
+        w_eff = w[mask]
+        x_eff = x[mask]
+        if len(x_eff) == 0:
+            return float("nan")
+        Wp_eff = float((w_eff * (x_eff ** p)).sum())
+        if Wp_eff <= 0:
+            return float("nan")
+        val = float((w_eff * (x_eff ** p) * np.log(x_eff)).sum() / Wp_eff)
+        return float(np.exp(val))
+
+
+def compute_metrics(df: pd.DataFrame) -> Tuple[float, float, float]:
+    """Gibt (Dn, DV, PDI_size) zurück (vgl. Kap. 2.8.2)."""
+    Dn = moment_ratio(df["Size"], df["Number"], 1, 0)
+    DV = moment_ratio(df["Size"], df["Number"], 4, 3)
+    pdi = DV / Dn if (Dn and not np.isnan(Dn) and Dn != 0) else float("nan")
+    return Dn, DV, pdi
 
 
 def median_from_discrete_classes(size: pd.Series, number: pd.Series) -> float:
@@ -172,15 +197,7 @@ def median_from_discrete_classes(size: pd.Series, number: pd.Series) -> float:
     return float(x0 + (0.5 - F0) / (F1 - F0) * (x1 - x0))
 
 
-def compute_metrics(df: pd.DataFrame) -> Tuple[float, float]:
-    """Gibt (Dn, CV_in_percent) zurueck (vgl. Kap. 2.8.2)."""
-    mu, sigma = weighted_mean_and_std(df["Size"], df["Number"])
-    Dn = mu
-    cv = 100.0 * sigma / Dn if Dn != 0 else float("nan")
-    return Dn, cv
-
-
-def make_plot(df: pd.DataFrame, Dn: float, cv: float, title: str, out_pdf: str) -> None:
+def make_plot(df: pd.DataFrame, Dn: float, DV: float, pdi: float, title: str, out_pdf: str) -> None:
     fig = plt.figure(figsize=(cm_to_in(FIG_WIDTH_CM), cm_to_in(FIG_HEIGHT_CM)))
     ax = plt.gca()
     ax.set_facecolor('none')
@@ -203,19 +220,13 @@ def make_plot(df: pd.DataFrame, Dn: float, cv: float, title: str, out_pdf: str) 
     plt.xlabel(r'Partikelgrösse $d_p$ / \si{\micro\meter}')
     plt.ylabel(r'Partikelanteil $n$ / \si{\percent}')
 
-    # Textbox mit Dn und CV (oben rechts)
-    text = (
-        rf"$D_{{n}} = {Dn:.2f}\,\si{{\micro\meter}}$"
-        "\n"
-        rf"$CV = {cv:.2f}\,\si{{\percent}}$"
-    )
-    plt.gca().text(0.98, 0.95, text, transform=plt.gca().transAxes,
-                   ha="right", va="top", bbox=dict(boxstyle="round", fc="white"))
-
-    # Hilfslinie bei Dn
+    # Hilfslinien bei Dn und DV
     try:
         ymin, ymax = plt.ylim()
-        plt.vlines(Dn, ymin, ymax, linestyles="dashed", linewidth=1, color="black")
+        ln1 = plt.vlines(Dn, ymin, ymax, linestyles="dashed", linewidth=1, color="tab:blue", label=rf"$D_{{n}} = {Dn:.2f}\,\si{{\micro\meter}}$")
+        ln2 = plt.vlines(DV, ymin, ymax, linestyles="dashed", linewidth=1, color="tab:red", label=rf"$D_{{V}} = {DV:.2f}\,\si{{\micro\meter}}$")
+        plt.plot([], [], ' ', label=rf"$\mathrm{{PDI_{{size}}}} = \frac{{D_V}}{{D_n}} = {pdi:.3f}$")
+        plt.legend(loc="best")
     except Exception:
         pass
 
@@ -227,17 +238,17 @@ def make_plot(df: pd.DataFrame, Dn: float, cv: float, title: str, out_pdf: str) 
 
 def process_file(xl_path: str) -> str:
     df = load_mastersizer_table(xl_path)
-    Dn, cv = compute_metrics(df)
+    Dn, DV, pdi = compute_metrics(df)
 
     base, _ = os.path.splitext(xl_path)
     out_pdf = base + ".pdf"
 
     # Plot-Titel: Dateiname ohne Pfad
     title = os.path.basename(base)
-    make_plot(df, Dn, cv, title, out_pdf)
+    make_plot(df, Dn, DV, pdi, title, out_pdf)
 
     print(f"OK: {xl_path}")
-    print(f"  Dn = {Dn:.6g} µm,  CV = {cv:.3f} %")
+    print(f"  Dn = {Dn:.6g} µm,  DV = {DV:.6g} µm,  PDI_size = {pdi:.6g}")
     print(f"  -> gespeichert: {out_pdf}")
     return out_pdf
 
