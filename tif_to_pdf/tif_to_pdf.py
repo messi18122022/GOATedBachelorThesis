@@ -72,7 +72,7 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument(
         "root",
         nargs="?",
-        default="/Users/musamoin/Desktop/BA_HS25/experiments",
+        default="/Users/musamoin/Desktop/BA-HS25/experiments",
         help="Wurzelordner (Standard: /Users/musamoin/Desktop/BA_HS25/REM)",
     )
     parser.add_argument(

@@ -39,7 +39,7 @@ import numpy as np
 # Konfiguration / Defaults
 # ------------------------------
 DEFAULT_FLUSS = 0.8  # mL/min
-PEAK_MIN_Y = 2.0  # nur Peaks >= 2 werden annotiert
+PEAK_MIN_Y = 5.0  # nur Peaks >= 2 werden annotiert
 
 PEAK_PROMINENCE = 0.5  # minimale Prominenz ueber den lokalen Flanken-Minima
 PEAK_MIN_SEP = 5       # minimaler Indexabstand zwischen Peaks (nach Detektion)
@@ -275,7 +275,7 @@ def plot_and_save(x: pd.Series, y: pd.Series, x_label: str, y_label: str, src: P
 
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    plt.ylim(top=20)
+    plt.ylim(top=40)
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
