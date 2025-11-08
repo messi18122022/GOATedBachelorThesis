@@ -21,6 +21,7 @@ import json
 import csv
 import sys
 from typing import Tuple
+import re
 
 import pandas as pd
 import numpy as np
@@ -307,6 +308,61 @@ def ve_to_M(ve: pd.Series, a: float, b: float, c: float, d: float) -> pd.Series:
     return pd.Series(M, index=ve.index)
 
 
+# --------------------------------------------------
+# M_n und M_w Berechnung aus Absorbanz (im grünen Bereich)
+def compute_Mn_Mw_from_absorbance(ve: pd.Series, absorbance: pd.Series) -> tuple[float | None, float | None, int]:
+    """Berechnet M_n und M_w aus Absorbanz (c_i ∝ A) vs. Molmasse im grünen Bereich.
+    Formeln:
+      M_n = (∑ c_i) / (∑ c_i / M_i)
+      M_w = (∑ c_i M_i) / (∑ c_i)
+    Rückgabe: (Mn, Mw, n_inside).
+    """
+    ve = pd.Series(ve).astype(float)
+    A = pd.Series(absorbance).astype(float)
+
+    # Grenzen & Koeffizienten laden
+    ve_min, ve_max = load_calibration_bounds(CAL_JSON.expanduser().resolve())
+    a, b, c, d = load_calibration_coeffs(CAL_JSON.expanduser().resolve())
+
+    inside = (ve >= ve_min) & (ve <= ve_max)
+    if not inside.any():
+        return None, None, 0
+
+    M = ve_to_M(ve, a, b, c, d)
+
+    # Filter: nur gültige, nichtnegative Werte im grünen Fenster
+    mask = inside & np.isfinite(M) & (M > 0) & np.isfinite(A) & (A >= 0)
+    if not mask.any():
+        return None, None, 0
+
+    Mi = M[mask].to_numpy(dtype=float)
+    ci = A[mask].to_numpy(dtype=float)
+
+    sum_c = float(np.sum(ci))
+    sum_c_over_M = float(np.sum(ci / Mi)) if np.all(Mi > 0) else np.nan
+    sum_cM = float(np.sum(ci * Mi))
+
+    Mn = (sum_c / sum_c_over_M) if (sum_c_over_M and np.isfinite(sum_c_over_M)) else None
+    Mw = (sum_cM / sum_c) if (sum_c and np.isfinite(sum_c)) else None
+    return Mn, Mw, int(mask.sum())
+
+# --------------------------------------------------
+# Hilfsfunktion: schöne LaTeX-Schreibweise für Zahlen (a · 10^{b})
+
+def _format_sci_tex(value: float, sigfig: int = 3, with_unit: bool = True) -> str:
+    if not np.isfinite(value) or value <= 0:
+        return "--"
+    # Interpret `sigfig` here as number of decimal places for plain decimal output
+    fmt = f"{{:.{sigfig}f}}"
+    s = fmt.format(float(value)).rstrip('0').rstrip('.')
+    if with_unit:
+        if plt.rcParams.get('text.usetex', False):
+            return rf"{s}\,\si{{\kilo\gram\per\mol}}"
+        else:
+            return f"{s} kg/mol"
+    return s
+
+
 def plot_mass_and_save(ve: pd.Series, y: pd.Series, src: Path) -> Path:
     """Plot: Signal (y) gegen Molmasse M (x). Es werden nur grüne Punkte (Ve_min..Ve_max) geplottet."""
     ve = pd.Series(ve).astype(float)
@@ -318,24 +374,48 @@ def plot_mass_and_save(ve: pd.Series, y: pd.Series, src: Path) -> Path:
 
     inside = (ve >= ve_min) & (ve <= ve_max)
     M = ve_to_M(ve, a, b, c, d)
+    M_kg = M / 1000.0
 
     # Nur grüne Punkte verwenden
-    x_inside = M.where(inside, np.nan)
+    x_inside = M_kg.where(inside, np.nan)
     y_inside = y.where(inside, np.nan)
     has_inside = np.isfinite(x_inside).any() and np.isfinite(y_inside).any()
 
     out_path = src.with_name(src.stem + "_M.pdf")
     plt.figure(figsize=(16/2.54, 6.5/2.54))
+    ax = plt.gca()
     if has_inside:
-        plt.plot(x_inside, y_inside)
+        ax.plot(x_inside, y_inside, color='black')
     else:
         # Nichts im grünen Bereich – Hinweis einblenden
-        plt.plot([], [])
-        plt.text(0.5, 0.5, 'Kein Datenpunkt im Kalibrationsfenster', transform=plt.gca().transAxes,
-                 ha='center', va='center', fontsize=8)
-    plt.grid(True)
-    plt.xlabel(r"Molmasse $M$ / \si{\gram\per\mol}")
-    plt.ylabel(r"Absorbanz $A$ / $10^{-3}$")
+        ax.plot([], [])
+        ax.text(0.5, 0.5, 'Kein Datenpunkt im Kalibrationsfenster', transform=ax.transAxes,
+                ha='center', va='center', fontsize=8)
+
+    # Mn, Mw, PDI berechnen (nur grüne Punkte) und als Legende oben rechts anzeigen
+    Mn, Mw, n_used = compute_Mn_Mw_from_absorbance(ve, y)
+    legend_items = []
+    legend_labels = []
+    if Mn is not None and Mw is not None and Mn != 0:
+        pdi = Mw / Mn
+        # vertikale Linien einzeichnen
+        mn_line = ax.axvline(Mn/1000.0, linestyle='--', linewidth=1.2, color='C0')
+        mw_line = ax.axvline(Mw/1000.0, linestyle='--', linewidth=1.2, color='C3')
+        legend_items.extend([mn_line, mw_line])
+        mn_str = _format_sci_tex(Mn/1000.0, sigfig=2, with_unit=True)
+        mw_str = _format_sci_tex(Mw/1000.0, sigfig=2, with_unit=True)
+        legend_labels.extend([rf"$M_n = {mn_str}$", rf"$M_w = {mw_str}$"])
+        legend_items.append(plt.Line2D([0],[0], color='none'))  # Platzhalter für PDI-Zeile
+        legend_labels.append(rf"PDI $= {pdi:.3f}$")
+        ax.legend(legend_items, legend_labels, loc='upper right', framealpha=0.8, frameon=True)
+    else:
+        ax.text(0.98, 0.98, 'Keine Werte (grüner Bereich leer)', transform=ax.transAxes,
+                ha='right', va='top', fontsize=8,
+                bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='none', alpha=0.75))
+
+    ax.grid(True)
+    ax.set_xlabel(r"Molmasse $M$ / \si{\kilo\gram\per\mol}")
+    ax.set_ylabel(r"Absorbanz $A$ / $10^{-3}$")
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
@@ -351,22 +431,104 @@ def plot_mass_and_save_zoom(ve: pd.Series, y: pd.Series, src: Path) -> Path:
     a, b, c, d = load_calibration_coeffs(CAL_JSON.expanduser().resolve())
     inside = (ve >= ve_min) & (ve <= ve_max)
     M = ve_to_M(ve, a, b, c, d)
-    x_inside = M.where(inside, np.nan)
+    M_kg = M / 1000.0
+    x_inside = M_kg.where(inside, np.nan)
     y_inside = y.where(inside, np.nan)
 
     out_path = src.with_name(src.stem + "_M_zoom.pdf")
     plt.figure(figsize=(16/2.54, 6.5/2.54))
+    ax = plt.gca()
     has_inside = np.isfinite(x_inside).any() and np.isfinite(y_inside).any()
     if has_inside:
-        plt.plot(x_inside, y_inside)
+        ax.plot(x_inside, y_inside, color='black')
     else:
-        plt.plot([], [])
-        plt.text(0.5, 0.5, 'Kein Datenpunkt im Kalibrationsfenster', transform=plt.gca().transAxes,
-                 ha='center', va='center', fontsize=8)
-    plt.grid(True)
-    plt.xlim(0, 414500)
-    plt.xlabel(r"Molmasse $M$ / \si{\gram\per\mol}")
-    plt.ylabel(r"Absorbanz $A$ / $10^{-3}$")
+        ax.plot([], [])
+        ax.text(0.5, 0.5, 'Kein Datenpunkt im Kalibrationsfenster', transform=ax.transAxes,
+                ha='center', va='center', fontsize=8)
+
+    # Legende oben rechts + Linien
+    Mn, Mw, n_used = compute_Mn_Mw_from_absorbance(ve, y)
+    legend_items = []
+    legend_labels = []
+    if Mn is not None and Mw is not None and Mn != 0:
+        pdi = Mw / Mn
+        mn_line = ax.axvline(Mn/1000.0, linestyle='--', linewidth=1.2, color='C0')
+        mw_line = ax.axvline(Mw/1000.0, linestyle='--', linewidth=1.2, color='C3')
+        legend_items.extend([mn_line, mw_line])
+        mn_str = _format_sci_tex(Mn/1000.0, sigfig=2, with_unit=True)
+        mw_str = _format_sci_tex(Mw/1000.0, sigfig=2, with_unit=True)
+        legend_labels.extend([rf"$M_n = {mn_str}$", rf"$M_w = {mw_str}$"])
+        legend_items.append(plt.Line2D([0],[0], color='none'))
+        legend_labels.append(rf"PDI $= {pdi:.3f}$")
+        ax.legend(legend_items, legend_labels, loc='upper right', framealpha=0.8, frameon=True)
+    else:
+        ax.text(0.98, 0.98, 'Keine Werte (grüner Bereich leer)', transform=ax.transAxes,
+                ha='right', va='top', fontsize=8,
+                bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='none', alpha=0.75))
+
+    ax.grid(True)
+    ax.set_xlim(0, 300)
+    ax.set_xlabel(r"Molmasse $M$ /  \si{\kilo\gram\per\mol}")
+    ax.set_ylabel(r"Absorbanz $A$ / $10^{-3}$")
+    plt.tight_layout()
+    plt.savefig(out_path, format="pdf")
+    plt.close()
+    return out_path
+
+# --------------------------------------------------
+# Overlay: Absorbanz vs. Molmasse (nur Zoom-Bereich, nur grüne Punkte)
+
+def plot_mass_overlay_zoom(csv_files: list[Path]) -> Path:
+    out_path = (BASE_PATH / "overlay_M_zoom.pdf").expanduser().resolve()
+    try:
+        ve_min, ve_max = load_calibration_bounds(CAL_JSON.expanduser().resolve())
+        a, b, c, d = load_calibration_coeffs(CAL_JSON.expanduser().resolve())
+    except Exception as e:
+        # Falls Kalibration fehlt, abbrechen
+        raise RuntimeError(f"Kalibration konnte nicht geladen werden: {e}")
+
+    plt.figure(figsize=(16/2.54, 6.5/2.54))
+    ax = plt.gca()
+    any_plotted = False
+
+    for src in csv_files:
+        try:
+            df = read_csv_agilent(src)
+            ve = compute_Ve(df, float(FLUSS_ML_MIN))
+            y = pd.Series(df["Signal"]).astype(float)
+            inside = (ve >= ve_min) & (ve <= ve_max)
+            if not inside.any():
+                continue
+            M = ve_to_M(ve, a, b, c, d)
+            M_kg = M / 1000.0
+            x_inside = pd.Series(M_kg).where(inside, np.nan)
+            y_inside = y.where(inside, np.nan)
+            if np.isfinite(x_inside).any() and np.isfinite(y_inside).any():
+                # Legendenlabel: nur EXP-Id im \texttt{}-Stil
+                stem = src.stem
+                m = re.search(r"EXP[-_]?(\d+)", stem, flags=re.IGNORECASE)
+                if m:
+                    exp_id = f"EXP-{m.group(1).zfill(3)}"
+                else:
+                    exp_id = stem
+                label_txt = rf"\texttt{{{exp_id}}}" if plt.rcParams.get('text.usetex', False) else exp_id
+                ax.plot(x_inside, y_inside, linewidth=1.0, label=label_txt)
+                any_plotted = True
+        except Exception:
+            # einzelne Datei ueberspringen
+            continue
+
+    if not any_plotted:
+        ax.plot([], [])
+        ax.text(0.5, 0.5, 'Keine gueltigen Daten im Kalibrationsfenster', transform=ax.transAxes,
+                ha='center', va='center', fontsize=8)
+
+    ax.grid(True)
+    ax.set_xlim(0, 300)
+    ax.set_xlabel(r"Molmasse $M$ /  \si{\kilo\gram\per\mol}")
+    ax.set_ylabel(r"Absorbanz $A$ / $10^{-3}$")
+    if any_plotted:
+        ax.legend(loc='upper right', framealpha=0.85, frameon=True)
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
@@ -408,6 +570,14 @@ def main() -> None:
             y_non_nan = int(np.count_nonzero(np.isfinite(df["Signal"].to_numpy(dtype=float))))
             print(f"   Punkte: {n_total}, inside: {n_inside}, outside: {n_outside}, y-nonNaN: {y_non_nan}")
 
+            # M_n und M_w aus Absorbanz vs. M (nur grüner Bereich)
+            Mn, Mw, n_used = compute_Mn_Mw_from_absorbance(ve, df["Signal"])  # Absorbanz ~ Konzentration
+            if Mn is not None and Mw is not None:
+                pdi = Mw / Mn if Mn else float('nan')
+                print(f"   M_n = {Mn/1000.0:.3e} kg/mol, M_w = {Mw/1000.0:.3e} kg/mol, PDI = {pdi:.3f}, Punkte(gruen) = {n_used}")
+            else:
+                print(f"   M_n/M_w nicht berechenbar (keine gueltigen Punkte im Kalibrationsfenster)")
+
             # Plot analog zum anderen Skript als PDF (gleicher Pfad wie Original-CSV)
             pdf_path = plot_and_save(ve, df["Signal"], src)
             pdf_mass_path = plot_mass_and_save(ve, df["Signal"], src)
@@ -419,6 +589,13 @@ def main() -> None:
         except Exception as e:
             fail += 1
             print(f"Fehler bei {src.name}: {e}", file=sys.stderr)
+
+    # Overlay-Plot fuer alle Proben (Absorbanz vs. Molmasse, Zoom)
+    try:
+        overlay_pdf = plot_mass_overlay_zoom(csv_files)
+        print(f"✔ Overlay (M Zoom): {overlay_pdf}")
+    except Exception as e:
+        print(f"Overlay-Plot fehlgeschlagen: {e}", file=sys.stderr)
 
     print(f"Fertig. Erfolgreich: {ok}, Fehlgeschlagen: {fail}")
 
