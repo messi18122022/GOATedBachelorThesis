@@ -26,12 +26,15 @@ from typing import Optional, Tuple, List
 
 import pandas as pd
 import matplotlib.pyplot as plt
-# Matplotlib: LaTeX + siunitx aktivieren
+# Matplotlib: LaTeX + siunitx aktivieren, Gitterlinien hell und dünn
 plt.rcParams.update({
     'text.usetex': True,
     'font.size': 9,
     'font.family': 'serif',
-    'text.latex.preamble': r'\usepackage{siunitx}'
+    'text.latex.preamble': r'\usepackage{siunitx}',
+    'grid.color': '#cccccc',   # hellgrau
+    'grid.alpha': 0.6,         # etwas transparenter
+    'grid.linewidth': 0.4      # duennere Linien
 })
 import numpy as np
 
@@ -39,7 +42,7 @@ import numpy as np
 # Konfiguration / Defaults
 # ------------------------------
 DEFAULT_FLUSS = 0.8  # mL/min
-PEAK_MIN_Y = 5.0  # nur Peaks >= 2 werden annotiert
+PEAK_MIN_Y = 2.0  # nur Peaks >= 2 werden annotiert
 
 PEAK_PROMINENCE = 0.5  # minimale Prominenz ueber den lokalen Flanken-Minima
 PEAK_MIN_SEP = 5       # minimaler Indexabstand zwischen Peaks (nach Detektion)
@@ -131,7 +134,7 @@ def get_axes_series(
     x = x.iloc[order]
     y = y.iloc[order]
 
-    x_label = rf"Elutionsvolumen $V_E$ [\si{{\milli\litre}}] (Zeit $\times$ {fluss_ml_min} \si{{\milli\litre\per\minute}})"
+    x_label = rf"Elutionsvolumen $V_E$ / \si{{\milli\liter}}"
     y_label = "Signal"
     return x, y, x_label, y_label
 
@@ -255,13 +258,14 @@ def plot_and_save(x: pd.Series, y: pd.Series, x_label: str, y_label: str, src: P
     out_path = src.with_suffix(".pdf")
     plt.figure(figsize=(16/2.54, 6.5/2.54))
     plt.plot(x, y)
+    plt.grid(True)
     # Peaks markieren und Elutionsvolumen anschreiben
     if peak_idx:
         xp = x.iloc[peak_idx]
         yp = y.iloc[peak_idx]
         plt.plot(xp, yp, 'o')
         for xv, yv in zip(xp, yp):
-            txt = rf"\SI{{{xv:.2f}}}{{\milli\litre}}"
+            txt = rf"\SI{{{xv:.2f}}}{{\milli\liter}}"
             plt.annotate(
                 txt,
                 xy=(xv, yv),
@@ -275,7 +279,7 @@ def plot_and_save(x: pd.Series, y: pd.Series, x_label: str, y_label: str, src: P
 
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    plt.ylim(top=40)
+    plt.ylim(top=20)
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
@@ -374,8 +378,9 @@ def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
         xfit = np.linspace(float(np.min(ve_arr)), float(np.max(ve_arr)), 400)
         yfit = np.polyval(coeffs, xfit)
         plt.plot(xfit, yfit, label="Fit")
-        plt.xlabel(r"Elutionsvolumen $V_E$ [\si{\milli\litre}]")
-        plt.ylabel(r"$\log_{10}(M)$")
+        plt.grid(True)
+        plt.xlabel(r"Elutionsvolumen $V_E$ / \si{\milli\liter}")
+        plt.ylabel(r"$\log_{10}\left( \frac{M}{\si{\gram\per\mol}} \right)$")
         plt.legend()
         plt.tight_layout()
         plt.savefig(cal_pdf, format="pdf")
