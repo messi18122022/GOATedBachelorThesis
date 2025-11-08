@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """
 Markiert SEC-CSV-Dateien anhand der Kalibrationsgrenzen (Ve_min, Ve_max) als
-"gruen" bzw. "rot" und exportiert sie als CSV. Das Datenformat bleibt wie
-beim Agilent-DAD-Export (Kommentarzeilen mit '#'), es wird jedoch eine vierte
-Spalte "Color" hinzugefügt. Die drei Originalspalten bleiben unverändert.
+"gruen" bzw. "rot" im Plot dargestellt. Es werden keine CSVs geschrieben.
 
 Einstellungen (im Skript oben konfigurierbar):
 - BASE_PATH : Ordner mit CSV-Dateien (Agilent-DAD-Format: '#...'-Kommentarzeilen
@@ -39,6 +37,19 @@ plt.rcParams.update({
     'grid.alpha': 0.6,         # etwas transparenter
     'grid.linewidth': 0.4      # dünnere Linien
 })
+
+# LaTeX-Fallback robust einbauen
+import shutil
+try:
+    if not shutil.which("latex"):
+        raise RuntimeError("LaTeX nicht verfügbar")
+except Exception:
+    # Fallback ohne LaTeX, damit die Plots nicht leer/fehlschlagen
+    plt.rcParams.update({
+        'text.usetex': False,
+        'font.size': 9,
+        'font.family': 'serif',
+    })
 
 # Peak-Detektionsparameter analog zum anderen Skript
 PEAK_MIN_Y = 2.0
@@ -209,6 +220,7 @@ def _extract_peak_volumes(x: pd.Series, y: pd.Series) -> list[float]:
     return xv
 
 
+
 # ------------------------------
 # Plot analog zum anderen Skript, aber mit zweifarbiger Linie
 # ------------------------------
@@ -229,20 +241,27 @@ def plot_and_save(x: pd.Series, y: pd.Series, src: Path) -> Path:
     y_inside = y.where(inside, np.nan)
     y_outside = y.where(~inside, np.nan)
 
-    md = max(5, len(y) // 200)
-    peak_idx = _find_peak_indices(y, min_y=PEAK_MIN_Y, window=md,
-                                  prominence=PEAK_PROMINENCE, min_sep=PEAK_MIN_SEP,
-                                  smooth_window=SMOOTH_WINDOW)
+    # Sichtbarkeits-Flags für Fallback
+    has_inside = np.isfinite(y_inside).any()
+    has_outside = np.isfinite(y_outside).any()
 
     out_path = src.with_suffix(".pdf")
     plt.figure(figsize=(16/2.54, 6.5/2.54))
-    # Rot außerhalb, Grün innerhalb
-    plt.plot(x, y_outside, color='red')
-    plt.plot(x, y_inside, color='green')
+    ax = plt.gca()
+    ax.set_facecolor('white')
+    plt.gcf().set_facecolor('white')
+    # Basis: komplette Kurve in hellgrau, damit immer etwas sichtbar ist
+    plt.plot(x, y, linewidth=0.8, alpha=0.7)
+    # Overlay: Rot außerhalb, Grün innerhalb
+    if has_outside:
+        plt.plot(x, y_outside, color='red', linewidth=1.2)
+    if has_inside:
+        plt.plot(x, y_inside, color='green', linewidth=1.2)
+
     plt.grid(True)
 
     plt.xlabel(r"Elutionsvolumen $V_E$ / \si{\milli\liter}")
-    plt.ylabel("Signal")
+    plt.ylabel(r"Absorbanz $A$ / $10^{-3}$")
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
@@ -303,13 +322,20 @@ def plot_mass_and_save(ve: pd.Series, y: pd.Series, src: Path) -> Path:
     # Nur grüne Punkte verwenden
     x_inside = M.where(inside, np.nan)
     y_inside = y.where(inside, np.nan)
+    has_inside = np.isfinite(x_inside).any() and np.isfinite(y_inside).any()
 
     out_path = src.with_name(src.stem + "_M.pdf")
     plt.figure(figsize=(16/2.54, 6.5/2.54))
-    plt.plot(x_inside, y_inside)
+    if has_inside:
+        plt.plot(x_inside, y_inside)
+    else:
+        # Nichts im grünen Bereich – Hinweis einblenden
+        plt.plot([], [])
+        plt.text(0.5, 0.5, 'Kein Datenpunkt im Kalibrationsfenster', transform=plt.gca().transAxes,
+                 ha='center', va='center', fontsize=8)
     plt.grid(True)
     plt.xlabel(r"Molmasse $M$ / \si{\gram\per\mol}")
-    plt.ylabel("Signal")
+    plt.ylabel(r"Absorbanz $A$ / $10^{-3}$")
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
@@ -330,11 +356,17 @@ def plot_mass_and_save_zoom(ve: pd.Series, y: pd.Series, src: Path) -> Path:
 
     out_path = src.with_name(src.stem + "_M_zoom.pdf")
     plt.figure(figsize=(16/2.54, 6.5/2.54))
-    plt.plot(x_inside, y_inside)
+    has_inside = np.isfinite(x_inside).any() and np.isfinite(y_inside).any()
+    if has_inside:
+        plt.plot(x_inside, y_inside)
+    else:
+        plt.plot([], [])
+        plt.text(0.5, 0.5, 'Kein Datenpunkt im Kalibrationsfenster', transform=plt.gca().transAxes,
+                 ha='center', va='center', fontsize=8)
     plt.grid(True)
-    plt.xlim(0, 5000)
+    plt.xlim(0, 414500)
     plt.xlabel(r"Molmasse $M$ / \si{\gram\per\mol}")
-    plt.ylabel("Signal")
+    plt.ylabel(r"Absorbanz $A$ / $10^{-3}$")
     plt.tight_layout()
     plt.savefig(out_path, format="pdf")
     plt.close()
@@ -367,6 +399,14 @@ def main() -> None:
         try:
             df = read_csv_agilent(src)
             ve = compute_Ve(df, fluss)
+
+            # Debug-Infos zur Sichtbarkeit
+            inside_mask = (ve >= ve_min) & (ve <= ve_max)
+            n_total = int(len(ve))
+            n_inside = int(np.count_nonzero(inside_mask))
+            n_outside = n_total - n_inside
+            y_non_nan = int(np.count_nonzero(np.isfinite(df["Signal"].to_numpy(dtype=float))))
+            print(f"   Punkte: {n_total}, inside: {n_inside}, outside: {n_outside}, y-nonNaN: {y_non_nan}")
 
             # Plot analog zum anderen Skript als PDF (gleicher Pfad wie Original-CSV)
             pdf_path = plot_and_save(ve, df["Signal"], src)
