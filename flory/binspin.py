@@ -33,7 +33,7 @@ def G_numba(phi, chi, XN):
 # Parameter
 # =============================
 XN = 10
-CHI_MIN, CHI_MAX, N_CHI = 0.866, 1.5, 200
+CHI_MIN, CHI_MAX, N_CHI = 0.866, 1.5, 20
 
 # =============================
 # Diskretisierung (fein)
@@ -183,7 +183,7 @@ def common_tangent(chi, G, dG_dphi, d2G_dphi2):
 # =============================
 os.makedirs('flory', exist_ok=True)
 cm_to_inch = 1/2.54
-fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 8*cm_to_inch))
+fig_main, ax_main = plt.subplots(figsize=(16*cm_to_inch, 10*cm_to_inch))
 
 chi_values = np.linspace(CHI_MIN, CHI_MAX, N_CHI)
 
@@ -210,8 +210,21 @@ for chi in tqdm(chi_values, desc="χ-Sweep"):
     contact_x.extend([float(a_phi), float(b_phi)])
     contact_y.extend([float(chi), float(chi)])
 
-    # Plot: Kurve
-    ax_main.plot(phi2, dGm_RT, color='gray', linewidth=0.4)
+    # Plot: Kurve – ausserste Grenzen farbig hervorheben
+    if np.isclose(chi, CHI_MAX):
+        ax_main.plot(phi2, dGm_RT, color='blue', linewidth=1.5)
+        # Beschriftung der blauen Randkurve
+        _phi_lbl = 0.8
+        ax_main.text(_phi_lbl, G(_phi_lbl), r'$\chi = 1.5$', color='blue', fontsize=9, va='bottom', ha='left',
+                     bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', boxstyle='round,pad=0.2'))
+    elif np.isclose(chi, CHI_MIN):
+        ax_main.plot(phi2, dGm_RT, color='red', linewidth=1.5)
+        # Beschriftung der roten Randkurve (kritischer Wert)
+        _phi_lbl = 0.2
+        ax_main.text(_phi_lbl, G(_phi_lbl), r'$\chi_c \approx 0.866$', color='red', fontsize=9, va='bottom', ha='left',
+                     bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', boxstyle='round,pad=0.2'))
+    else:
+        ax_main.plot(phi2, dGm_RT, color='gray', linewidth=0.4)
 
     # Marker: Wendepunkte (Dreiecke, gray)
     if w_phi.size:
@@ -220,9 +233,11 @@ for chi in tqdm(chi_values, desc="χ-Sweep"):
     # Marker: Berührungspunkte (Kreise, dimgrey)
     ax_main.scatter([a_phi, b_phi], [G(a_phi), G(b_phi)], marker='o', c='dimgrey', s=10, zorder=6)
 
-# Legende fuer den Sweep-Plot (eine graue Linie, Dreieck fuer Wendepunkte, Punkt fuer Beruehrungspunkte)
+# Legende fuer den Sweep-Plot (eine graue Linie, farbige Randkurven, Dreieck fuer Wendepunkte, Punkt fuer Beruehrungspunkte)
 legend_elements = [
     Line2D([0], [0], color='gray', linewidth=0.8, label=r'$\Delta G^{m}/(RT)$'),
+    Line2D([0], [0], color='blue', linewidth=1.2, label=r'$\chi = 1.5$'),
+    Line2D([0], [0], color='red', linewidth=1.2, label=r'$\chi_c \approx 0.866$'),
     Line2D([0], [0], marker='^', linestyle='None', markerfacecolor='gray', markeredgecolor='gray', label='Wendepunkte'),
     Line2D([0], [0], marker='o', linestyle='None', markerfacecolor='dimgrey', markeredgecolor='dimgrey', label='Berührungspunkte'),
 ]
