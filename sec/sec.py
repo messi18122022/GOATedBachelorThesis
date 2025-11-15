@@ -380,7 +380,7 @@ def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
         plt.plot(xfit, yfit, label="Fit")
         plt.grid(True)
         plt.xlabel(r"Elutionsvolumen $V_E$ / \si{\milli\liter}")
-        plt.ylabel(r"$\log_{10}\left( \frac{M}{\si{\gram\per\mol}} \right)$")
+        plt.ylabel(r"$\log_{10}\left( \frac{M_p}{\si{\gram\per\mol}} \right)$")
         plt.legend()
         plt.tight_layout()
         plt.savefig(cal_pdf, format="pdf")
