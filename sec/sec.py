@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Liest alle CSV-Dateien in einem angegebenen Ordner ein, erzeugt fuer jede Datei
  einen Plot (Elutionsvolumen auf x, Signal auf y) und speichert den Plot als PDF
@@ -135,7 +136,7 @@ def get_axes_series(
     y = y.iloc[order]
 
     x_label = rf"Elutionsvolumen $V_E$ / \si{{\milli\liter}}"
-    y_label = "Signal"
+    y_label = rf"Absorbanz $A$ / $10^{{-3}}$"
     return x, y, x_label, y_label
 
 
@@ -298,6 +299,77 @@ def process_file(csv_path: Path, fluss: float) -> Optional[Path]:
         return None
 
 
+# Overlay-Plot Funktion nach process_file eingefügt
+def plot_overlay_chromatograms(base: Path, fluss: float) -> Optional[Path]:
+    """Plottet alle Chromatogramme im angegebenen Ordner als duenne Linien
+    uebereinander. Farbwahl nach Dateiname: 'blue', 'green', 'red' (lowercase),
+    sonst 'black'. Gibt den Pfad zum gespeicherten PDF zurueck."""
+    import sys
+    import matplotlib.pyplot as plt
+
+    out_path = base / "overlay_chromatograms.pdf"
+    csv_files = sorted([p for p in base.iterdir() if p.suffix.lower() == ".csv"])
+    if not csv_files:
+        return None
+
+    plt.figure(figsize=(16/2.54, 6.5/2.54))
+    x_label: str | None = None
+    y_label: str | None = None
+    # Merken, ob eine Farbe bereits geplottet wurde (fuer Legenden-Eintraege)
+    color_used = {"blue": False, "green": False, "red": False}
+
+    for csv_path in csv_files:
+        name = csv_path.stem.lower()
+        try:
+            df = read_csv_robust(csv_path)
+            df = normalize_decimals(df)
+            x, y, xl, yl = get_axes_series(df, fluss)
+            if x_label is None:
+                x_label = xl
+            if y_label is None:
+                y_label = yl
+
+            color = "black"
+            label = None
+            if "blue" in name:
+                color = "blue"
+                if not color_used["blue"]:
+                    label = "Blau"
+                    color_used["blue"] = True
+            elif "green" in name:
+                color = "green"
+                if not color_used["green"]:
+                    label = "Grün"
+                    color_used["green"] = True
+            elif "red" in name:
+                color = "red"
+                if not color_used["red"]:
+                    label = "Rot"
+                    color_used["red"] = True
+
+            if label is not None:
+                plt.plot(x, y, linewidth=0.8, color=color, label=label)
+            else:
+                plt.plot(x, y, linewidth=0.8, color=color)
+        except Exception as e:
+            print(f"Overlay-Warnung bei {csv_path.name}: {e}", file=sys.stderr)
+            continue
+
+    plt.grid(True)
+    if x_label is not None:
+        plt.xlabel(x_label)
+    if y_label is not None:
+        plt.ylabel(y_label)
+    # Legende nur anzeigen, wenn mindestens eine Standardfarbe vorkam
+    if any(color_used.values()):
+        plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_path, format="pdf")
+    plt.close()
+    print(f"✔ Gespeichert: {out_path}")
+    return out_path
+
+
 # Kalibrationspunkte sammeln und Fit durchfuehren
 def perform_calibration(base: Path, fluss: float) -> Optional[Path]:
     """Sammelt (Ve, log10(M)) Punkte aus allen Blue/Green/Red-Dateien und fit:
@@ -452,6 +524,8 @@ def main():
 
     # Kalibration ueber alle Dateien im Ordner
     perform_calibration(base, fluss)
+    # Overlay-Plot aller Chromatogramme
+    plot_overlay_chromatograms(base, fluss)
 
     print(f"Fertig. Erfolgreich: {ok}, Fehlgeschlagen: {fail}")
 

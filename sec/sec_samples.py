@@ -382,7 +382,7 @@ def plot_mass_and_save(ve: pd.Series, y: pd.Series, src: Path) -> Path:
     has_inside = np.isfinite(x_inside).any() and np.isfinite(y_inside).any()
 
     out_path = src.with_name(src.stem + "_M.pdf")
-    plt.figure(figsize=(16/2.54, 6.5/2.54))
+    plt.figure(figsize=(7.5/2.54, 6.5/2.54))
     ax = plt.gca()
     if has_inside:
         ax.plot(x_inside, y_inside, color='black')
@@ -436,7 +436,7 @@ def plot_mass_and_save_zoom(ve: pd.Series, y: pd.Series, src: Path) -> Path:
     y_inside = y.where(inside, np.nan)
 
     out_path = src.with_name(src.stem + "_M_zoom.pdf")
-    plt.figure(figsize=(16/2.54, 6.5/2.54))
+    plt.figure(figsize=(7.5/2.54, 6.5/2.54))
     ax = plt.gca()
     has_inside = np.isfinite(x_inside).any() and np.isfinite(y_inside).any()
     if has_inside:
