@@ -418,8 +418,136 @@ def plot_transformed_positive_C(
     return fig, ax
 
 
+def analyze_bet_point_counts(
+    csv_path=None,
+):
+    """
+    Analysiert den BET-Plot fuer verschiedene Anzahlen von Punkten
+    im Adsorptionsbereich 0.05 <= p/p0 <= 0.30.
+
+    Es werden nacheinander Fits mit N Punkten gemacht (N = 12, 11, ..., 3),
+    und jeweils a, b, r, C, n_m und a_s(BET) ausgegeben.
+    """
+
+    if csv_path is None:
+        csv_path = ISO_CSV_PATH
+
+    csv_path = Path(csv_path)
+
+    # CSV einlesen
+    df = pd.read_csv(csv_path)
+    df["mol_per_g"] = df["Volume @ STP"] / 22414
+
+    x_vals = df["Relative Pressure"]
+    n_vals = df["mol_per_g"]
+    df["n_transformed"] = x_vals / (n_vals * (1 - x_vals))
+
+    # Adsorptionszweig bestimmen
+    idx_max = df["Volume @ STP"].idxmax()
+    ads_all = df.loc[:idx_max]
+
+    # Bereich 0.05–0.30
+    ads_range = ads_all[(ads_all["Relative Pressure"] >= 0.05) & (ads_all["Relative Pressure"] <= 0.30)]
+
+    total_points = len(ads_range)
+    print(f"BET-Analyse im Bereich 0.05 ≤ p/p0 ≤ 0.30 mit insgesamt {total_points} Punkten")
+
+    # Von N = total_points bis 3 heruntergehen
+    for N in range(total_points, 2, -1):
+        subset = ads_range.head(N)
+
+        x = subset["Relative Pressure"].to_numpy()
+        y = subset["n_transformed"].to_numpy()
+
+        # Lineare Regression
+        m, b = np.polyfit(x, y, 1)
+        a = b
+        b_slope = m
+
+        # Korrelationskoeffizient r
+        r = np.corrcoef(x, y)[0, 1]
+
+        # BET-Parameter
+        C = 1 + b_slope / a
+        nm = 1 / (a + b_slope)
+        a_s = nm * 97556
+
+        # Plot für dieses N erstellen
+        figN, axN = plt.subplots(figsize=(16/2.54, 8/2.54))
+
+        # nur Punkte
+        axN.plot(
+            x,
+            y,
+            marker="o",
+            markersize=4,
+            linestyle="None",
+            color="black",
+            label="Daten",
+        )
+
+        # Regressionsgerade
+        x_fit = np.linspace(x.min(), x.max(), 100)
+        y_fit = m * x_fit + b
+        axN.plot(
+            x_fit,
+            y_fit,
+            linestyle="--",
+            color="black",
+            label=(
+                rf"$r = {r:.4f}$"
+                "\n" rf"$a = {a:.4f}$"
+                "\n" rf"$b = {b_slope:.4f}$"
+                "\n" rf"$n_m = {nm:.2e}$"
+                "\n" rf"$C = {C:.4f}$"
+                "\n" rf"$a_\mathrm{{s}} = {a_s:.2e}\ \si{{\meter\tothe{{2}}\per\gram}}$"
+            ),
+        )
+
+        axN.set_xlabel(r"relativer Druck $p/p_0$")
+        axN.set_ylabel(r"$\frac{x}{n_\mathrm{ads}(1-x)}$")
+        axN.grid(True)
+        axN.legend()
+        figN.tight_layout()
+
+        # speichern
+        pdf_pathN = csv_path.with_name(csv_path.stem + f"_BET_N{N}.pdf")
+        figN.savefig(pdf_pathN, dpi=300)
+
+        # Residuen berechnen
+        y_pred = m * x + b
+        residuals = y - y_pred
+
+        # Residuen-Plot
+        fig_resN, ax_resN = plt.subplots(figsize=(16/2.54, 8/2.54))
+        ax_resN.axhline(0, linestyle="--", color="black")
+        ax_resN.plot(
+            x,
+            residuals,
+            marker="o",
+            markersize=4,
+            linestyle="None",
+            color="black",
+        )
+        ax_resN.set_xlabel(r"relativer Druck $p/p_0$")
+        ax_resN.set_ylabel(r"Residuen")
+        ax_resN.grid(True)
+        fig_resN.tight_layout()
+
+        # speichern
+        pdf_path_resN = csv_path.with_name(csv_path.stem + f"_BET_N{N}_residuals.pdf")
+        fig_resN.savefig(pdf_path_resN, dpi=300)
+
+        print(
+            f"N = {N:2d}, p/p0 von {x.min():.5f} bis {x.max():.5f} | "
+            f"a = {a:.4f}, b = {b_slope:.4f}, r = {r:.6f}, "
+            f"C = {C:.4f}, n_m = {nm:.4e} mol/g, a_s(BET) = {a_s:.4e} m^2/g"
+        )
+
+
 if __name__ == "__main__":
     # Wenn du das Skript direkt startest, wird automatisch die Isotherme geplottet.
     plot_isotherm()
     plot_transformed()
     plot_transformed_positive_C()
+    analyze_bet_point_counts()
