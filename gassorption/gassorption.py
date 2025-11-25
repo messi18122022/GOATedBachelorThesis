@@ -167,9 +167,6 @@ def plot_transformed(
 
     # spezifische Oberfläche berechnen
     a_s = nm * 97556
-    a_s_str = f"{a_s:.2e}"
-    a_s_mantissa, a_s_exp = a_s_str.split("e")
-    a_s_exp = int(a_s_exp)
 
     # Korrelationskoeffizient r
     r = np.corrcoef(x, y)[0, 1]
@@ -204,7 +201,7 @@ def plot_transformed(
             "\n" rf"$b = {m:.4f}$"
             "\n" rf"$n_m = {nm_mantissa}\cdot 10^{{{nm_exp}}}$"
             "\n" rf"$C = {C:.4f}$"
-            "\n" rf"$a_\mathrm{{s}}(\mathrm{{BET}}) = {a_s_mantissa}\cdot 10^{{{a_s_exp}}}\ \si{{\meter\tothe{{2}}\per\gram}}$"
+            "\n" rf"$a_\mathrm{{s}}(\mathrm{{BET}}) = {a_s:.2f}\ \si{{\meter\tothe{{2}}\per\gram}}$"
         ),
     )
 
@@ -337,9 +334,6 @@ def plot_transformed_positive_C(
 
     # spezifische Oberfläche berechnen
     a_s = nm * 97556
-    a_s_str = f"{a_s:.2e}"
-    a_s_mantissa, a_s_exp = a_s_str.split("e")
-    a_s_exp = int(a_s_exp)
 
     # Residuen berechnen
     y_pred = m * x + b
@@ -372,7 +366,7 @@ def plot_transformed_positive_C(
             "\n" rf"$b = {m:.4f}$"
             "\n" rf"$n_m = {nm_mantissa}\cdot 10^{{{nm_exp}}}$"
             "\n" rf"$C = {C:.4f}$"
-            "\n" rf"$a_\mathrm{{s}}(\mathrm{{BET}}) = {a_s_mantissa}\cdot 10^{{{a_s_exp}}}\ \si{{\meter\tothe{{2}}\per\gram}}$"
+            "\n" rf"$a_\mathrm{{s}}(\mathrm{{BET}}) = {a_s:.2f}\ \si{{\meter\tothe{{2}}\per\gram}}$"
         ),
     )
 
@@ -471,6 +465,9 @@ def analyze_bet_point_counts(
         C = 1 + b_slope / a
         nm = 1 / (a + b_slope)
         a_s = nm * 97556
+        nm_str = f"{nm:.2e}"
+        nm_mantissa, nm_exp = nm_str.split("e")
+        nm_exp = int(nm_exp)
 
         # Plot für dieses N erstellen
         figN, axN = plt.subplots(figsize=(16/2.54, 8/2.54))
@@ -498,9 +495,9 @@ def analyze_bet_point_counts(
                 rf"$r = {r:.4f}$"
                 "\n" rf"$a = {a:.4f}$"
                 "\n" rf"$b = {b_slope:.4f}$"
-                "\n" rf"$n_m = {nm:.2e}$"
+                "\n" rf"$n_m = {nm_mantissa}\cdot 10^{{{nm_exp}}}$"
                 "\n" rf"$C = {C:.4f}$"
-                "\n" rf"$a_\mathrm{{s}} = {a_s:.2e}\ \si{{\meter\tothe{{2}}\per\gram}}$"
+                "\n" rf"$a_\mathrm{{s}} = {a_s:.2f}\ \si{{\meter\tothe{{2}}\per\gram}}$"
             ),
         )
 
@@ -548,6 +545,4 @@ def analyze_bet_point_counts(
 if __name__ == "__main__":
     # Wenn du das Skript direkt startest, wird automatisch die Isotherme geplottet.
     plot_isotherm()
-    plot_transformed()
-    plot_transformed_positive_C()
     analyze_bet_point_counts()
