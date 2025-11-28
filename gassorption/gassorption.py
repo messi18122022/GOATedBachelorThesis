@@ -156,6 +156,9 @@ def analyze_bet_point_counts(
     total_points = len(ads_range)
     print(f"BET-Analyse im Bereich 0.05 ≤ p/p0 ≤ 0.30 mit insgesamt {total_points} Punkten")
 
+    # Liste, um die BET-Parameter fuer jedes N zu sammeln
+    results = []
+
     # Von N = total_points bis 3 heruntergehen
     for N in range(total_points, 2, -1):
         subset = ads_range.head(N)
@@ -212,7 +215,7 @@ def analyze_bet_point_counts(
         )
 
         axN.set_xlabel(r"relativer Druck $p/p_0$")
-        axN.set_ylabel(r"$\frac{x}{n_\mathrm{ads}(1-x)}$")
+        axN.set_ylabel(r"$\frac{p/p_0}{n_\mathrm{ads}(1-p/p_o)}$")
         axN.grid(True)
         axN.legend()
         figN.tight_layout()
@@ -250,6 +253,26 @@ def analyze_bet_point_counts(
             f"a = {a:.4f}, b = {b_slope:.4f}, r = {r:.6f}, "
             f"C = {C:.4f}, n_m = {nm:.4e} mol/g, a_s(BET) = {a_s:.4e} m^2/g"
         )
+
+        # Ergebnisse fuer dieses N speichern
+        results.append({
+            "N": int(N),
+            "p_over_p0_min": float(x.min()),
+            "p_over_p0_max": float(x.max()),
+            "a_intercept": float(a),
+            "b_slope": float(b_slope),
+            "r": float(r),
+            "C": float(C),
+            "n_m_mol_per_g": float(nm),
+            "a_s_m2_per_g": float(a_s),
+        })
+
+    # Ergebnisse als CSV exportieren
+    if results:
+        results_df = pd.DataFrame(results)
+        csv_out_path = csv_path.with_name(csv_path.stem + "_BET_parameters.csv")
+        results_df.to_csv(csv_out_path, index=False)
+        print(f"BET-Parameter als CSV gespeichert unter: {csv_out_path}")
 
 
 if __name__ == "__main__":
