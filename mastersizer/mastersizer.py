@@ -161,7 +161,7 @@ def _init_figure_and_axes() -> tuple[plt.Figure, mpl.axes.Axes]:
     ax.set_facecolor("none")
     fig.patch.set_alpha(0)
 
-    ax.grid(True, which="both", linestyle="-", linewidth=0.2, color="black", alpha=0.5)
+    ax.grid(True, which="both", linestyle="-", linewidth=0.1, color="black", alpha=0.4)
     ax.set_xscale("log")
 
     from matplotlib.ticker import ScalarFormatter
@@ -213,7 +213,7 @@ def make_overlay_plot(curves: dict[str, pd.DataFrame], title: str, out_pdf: str)
     fig, ax = _init_figure_and_axes()
 
     for label, df in curves.items():
-        ax.plot(df["Size"], df["Number"], label=label, linewidth=0.8)
+        ax.plot(df["Size"], df["Number"], label=label, linewidth=1.0)
 
     ax.legend(loc="best")
     fig.tight_layout()
