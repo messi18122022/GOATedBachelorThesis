@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Durchsuche rekursiv den Datenpfad nach Excel-Files mit "Mastersizer" im Dateinamen,
-lese die Daten (Size Classes / Number Density), berechne Dn (zahlenmittlerer Durchmesser), DV (volumenmittlerer Durchmesser) und PDI_size (= DV / Dn),
-und erstelle fuer jedes File einen Plot (x: Size classes, y: Number distr. (%)).
-Der Plot enthaelt die Werte fuer Dn, DV und PDI_size und wird als gleichnamiges PDF im
-selben Ordner gespeichert.
+Lese alle Excel-Files im festen Pfad EXP-017/mastersizer ein und
+erstelle zwei Plots:
+
+1) Overlay-Plot aller Kurven (alle Dateien). Legende: Dateiname ohne Endung.
+2) Einzel-Plot fuer die Datei "EXP-017 in EtOH.xlsx" mit berechneten Dn, DV
+   und PDI_size (= DV / Dn). Die Werte werden per Hilfslinien eingezeichnet
+   und in der Legende angegeben.
 
 Definitionen:
 - Dn = D[1,0] (Moment-Ratio-Definition-System)
 - DV = D[4,3]
 - PDI_size = DV / Dn
-
-Getestet mit Dateien im Stil von EXP-001-Mastersizer.xlsx.
 """
 
 from __future__ import annotations
@@ -36,8 +36,7 @@ mpl.rcParams['savefig.transparent'] = True
 # =============================
 # Konfiguration
 # =============================
-BASE_DIR = "/Users/musamoin/Desktop/BA-HS25/experiments"
-FILE_KEYWORD = "Mastersizer"
+BASE_DIR = "/Users/musamoin/Desktop/BA-HS25/experiments/EXP-017/mastersizer"
 EXCEL_EXTS = {".xlsx", ".xls", ".xlsm"}
 
 FIG_WIDTH_CM = 16.0
@@ -51,15 +50,12 @@ def cm_to_in(x: float) -> float:
 # =============================
 
 def find_excel_files(base_dir: str) -> list[str]:
-    paths = []
-    for root, _, files in os.walk(base_dir):
-        for fn in files:
-            name_lower = fn.lower()
-            if FILE_KEYWORD.lower() in name_lower:
-                ext = os.path.splitext(fn)[1].lower()
-                if ext in EXCEL_EXTS:
-                    paths.append(os.path.join(root, fn))
-    return sorted(paths)
+    return sorted(
+        os.path.join(root, fn)
+        for root, _, files in os.walk(base_dir)
+        for fn in files
+        if os.path.splitext(fn)[1].lower() in EXCEL_EXTS
+    )
 
 
 def _try_parse_by_header_markers(xl_path: str) -> Optional[pd.DataFrame]:
@@ -158,99 +154,110 @@ def moment_ratio(size: pd.Series, number: pd.Series, p: int, q: int) -> float:
         return float(np.exp(val))
 
 
-def compute_metrics(df: pd.DataFrame) -> Tuple[float, float, float]:
-    """Gibt (Dn, DV, PDI_size) zurück (vgl. Kap. 2.8.2)."""
-    Dn = moment_ratio(df["Size"], df["Number"], 1, 0)
-    DV = moment_ratio(df["Size"], df["Number"], 4, 3)
-    pdi = DV / Dn if (Dn and not np.isnan(Dn) and Dn != 0) else float("nan")
-    return Dn, DV, pdi
-
-
-def median_from_discrete_classes(size: pd.Series, number: pd.Series) -> float:
-    """Berechne d50 (Median) ueber kumulative Summe und lineare Interpolation
-    zwischen benachbarten Klassenmitten.
-    """
-    w = number.astype(float)
-    x = size.astype(float)
-    order = np.argsort(x.values)
-    x = x.values[order]
-    w = w.values[order]
-
-    W = w.sum()
-    if W <= 0:
-        raise ValueError("Summe der Gewichte ist 0.")
-
-    F = np.cumsum(w) / W
-    # erstes Index, bei dem F >= 0.5
-    idx = np.searchsorted(F, 0.5)
-
-    if idx == 0:
-        return float(x[0])
-    if idx >= len(x):
-        return float(x[-1])
-
-    x0, x1 = x[idx - 1], x[idx]
-    F0, F1 = F[idx - 1], F[idx]
-    if F1 == F0:
-        return float((x0 + x1) / 2.0)
-    # lineare Interpolation
-    return float(x0 + (0.5 - F0) / (F1 - F0) * (x1 - x0))
-
-
-def make_plot(df: pd.DataFrame, Dn: float, DV: float, pdi: float, title: str, out_pdf: str) -> None:
+def _init_figure_and_axes() -> tuple[plt.Figure, mpl.axes.Axes]:
+    """Erzeuge Standard-Figur mit log-x-Achse und einheitlichem Layout."""
     fig = plt.figure(figsize=(cm_to_in(FIG_WIDTH_CM), cm_to_in(FIG_HEIGHT_CM)))
     ax = plt.gca()
-    ax.set_facecolor('none')
+    ax.set_facecolor("none")
     fig.patch.set_alpha(0)
-    plt.plot(df["Size"], df["Number"], color="black")
-    plt.grid(True, which="both", linestyle="-", linewidth=0.2, color="black", alpha=0.5)
-    plt.xscale("log")
+
+    ax.grid(True, which="both", linestyle="-", linewidth=0.2, color="black", alpha=0.5)
+    ax.set_xscale("log")
 
     from matplotlib.ticker import ScalarFormatter
     formatter = ScalarFormatter()
     formatter.set_scientific(False)
     formatter.set_useOffset(False)
     ax.xaxis.set_major_formatter(formatter)
-    # explizite Labels, damit 0.01 nicht zu 0.0 gerundet wird
+
     ticks = [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
     labels = ["0.01", "0.1", "1.0", "10.0", "100.0", "1000.0"]
     ax.set_xticks(ticks)
     ax.set_xticklabels(labels)
 
-    plt.xlabel(r'Partikelgrösse $d_p$ / \si{\micro\meter}')
-    plt.ylabel(r'Partikelanteil $n$ / \si{\percent}')
+    ax.set_xlabel(r'Partikelgroesse $d_p$ / \si{\micro\meter}')
+    ax.set_ylabel(r'Partikelanteil $n$ / \si{\percent}')
+    return fig, ax
 
-    # Hilfslinien bei Dn und DV
+
+def compute_metrics(df: pd.DataFrame) -> Tuple[float, float, float]:
+    """Gibt (Dn, DV, PDI_size) zurueck (vgl. Kap. 2.8.2)."""
+    Dn = moment_ratio(df["Size"], df["Number"], 1, 0)
+    DV = moment_ratio(df["Size"], df["Number"], 4, 3)
+    pdi = DV / Dn if (Dn and not np.isnan(Dn) and Dn != 0) else float("nan")
+    return Dn, DV, pdi
+
+
+def make_single_plot(df: pd.DataFrame, Dn: float, DV: float, pdi: float, title: str, out_pdf: str) -> None:
+    fig, ax = _init_figure_and_axes()
+    ax.plot(df["Size"], df["Number"], color="black")
+
+    # Hilfslinien und Legende fuer Dn, DV, PDI_size
     try:
-        ymin, ymax = plt.ylim()
-        ln1 = plt.vlines(Dn, ymin, ymax, linestyles="dashed", linewidth=1, color="tab:blue", label=rf"$D_{{n}} = {Dn:.2f}\,\si{{\micro\meter}}$")
-        ln2 = plt.vlines(DV, ymin, ymax, linestyles="dashed", linewidth=1, color="tab:red", label=rf"$D_{{V}} = {DV:.2f}\,\si{{\micro\meter}}$")
-        plt.plot([], [], ' ', label=rf"$\mathrm{{PDI_{{size}}}} = \frac{{D_V}}{{D_n}} = {pdi:.3f}$")
-        plt.legend(loc="best")
+        ymin, ymax = ax.get_ylim()
+        ax.vlines(Dn, ymin, ymax, linestyles="dashed", linewidth=1, color="tab:blue",
+                  label=rf"$D_{{n}} = {Dn:.2f}\,\si{{\micro\meter}}$")
+        ax.vlines(DV, ymin, ymax, linestyles="dashed", linewidth=1, color="tab:red",
+                  label=rf"$D_{{V}} = {DV:.2f}\,\si{{\micro\meter}}$")
+        ax.plot([], [], " ", label=rf"$\mathrm{{PDI_{{size}}}} = \frac{{D_V}}{{D_n}} = {pdi:.3f}$")
+        ax.legend(loc="best")
     except Exception:
         pass
 
-    plt.tight_layout()
-    # als PDF speichern
-    plt.savefig(out_pdf, transparent=True, bbox_inches='tight')
-    plt.close()
+    fig.tight_layout()
+    fig.savefig(out_pdf, transparent=True, bbox_inches="tight")
+    plt.close(fig)
 
 
-def process_file(xl_path: str) -> str:
-    df = load_mastersizer_table(xl_path)
-    Dn, DV, pdi = compute_metrics(df)
+def make_overlay_plot(curves: dict[str, pd.DataFrame], title: str, out_pdf: str) -> None:
+    fig, ax = _init_figure_and_axes()
 
-    base, _ = os.path.splitext(xl_path)
-    out_pdf = base + ".pdf"
+    for label, df in curves.items():
+        ax.plot(df["Size"], df["Number"], label=label, linewidth=0.8)
 
-    # Plot-Titel: Dateiname ohne Pfad
-    title = os.path.basename(base)
-    make_plot(df, Dn, DV, pdi, title, out_pdf)
+    ax.legend(loc="best")
+    fig.tight_layout()
+    fig.savefig(out_pdf, transparent=True, bbox_inches="tight")
+    plt.close(fig)
 
-    print(f"OK: {xl_path}")
-    print(f"  Dn = {Dn:.6g} µm,  DV = {DV:.6g} µm,  PDI_size = {pdi:.6g}")
-    print(f"  -> gespeichert: {out_pdf}")
-    return out_pdf
+
+def process_all(files: list[str]) -> int:
+    """Erzeuge Overlay-Plot (alle Dateien) und Einzel-Plot fuer EtOH."""
+    if not files:
+        print("Keine Dateien uebergeben.")
+        return 1
+
+    etoh_name = "EXP-017 in EtOH.xlsx"
+    etoh_path: Optional[str] = None
+    overlay_curves: dict[str, pd.DataFrame] = {}
+
+    for p in files:
+        df = load_mastersizer_table(p)
+        base = os.path.basename(p)
+        overlay_curves[os.path.splitext(base)[0]] = df
+        if base == etoh_name:
+            etoh_path = p
+            etoh_df = df
+
+    # Overlay-Plot
+    if overlay_curves:
+        overlay_pdf = os.path.join(BASE_DIR, "EXP-017-overlay.pdf")
+        make_overlay_plot(overlay_curves, "", overlay_pdf)
+        print(f"Overlay-Plot gespeichert: {overlay_pdf}")
+    else:
+        print("Keine Dateien fuer den Overlay-Plot gefunden.")
+
+    # Einzel-Plot fuer EtOH
+    if etoh_path is not None:
+        Dn, DV, pdi = compute_metrics(etoh_df)
+        base, _ = os.path.splitext(etoh_path)
+        single_pdf = base + ".pdf"
+        make_single_plot(etoh_df, Dn, DV, pdi, "", single_pdf)
+        print(f"EtOH-Plot gespeichert: {single_pdf}")
+        print(f"  Dn = {Dn:.6g} µm,  DV = {DV:.6g} µm,  PDI_size = {pdi:.6g}")
+    else:
+        print(f"ACHTUNG: Datei '{etoh_name}' wurde nicht gefunden.")
+    return 0
 
 
 # =============================
@@ -263,19 +270,13 @@ def main(base_dir: str) -> int:
         print(f"Keine Dateien gefunden in: {base_dir}")
         return 1
 
-    errors = 0
-    for p in files:
-        try:
-            process_file(p)
-        except Exception as e:
-            errors += 1
-            print(f"FEHLER bei {p}: {e}")
+    try:
+        return_code = process_all(files)
+    except Exception as e:
+        print(f"FEHLER beim Verarbeiten der Dateien: {e}")
+        return_code = 2
 
-    if errors:
-        print(f"Fertig mit {len(files)} Dateien, {errors} Fehler.")
-    else:
-        print(f"Fertig mit {len(files)} Dateien, keine Fehler.")
-    return 0 if errors == 0 else 2
+    return return_code
 
 
 if __name__ == "__main__":
