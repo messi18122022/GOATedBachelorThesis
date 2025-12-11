@@ -11,6 +11,13 @@ logarithmischer x-Achse. Die Plots werden als PDF in
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Computer Modern Roman"],
+    "text.latex.preamble": r"\usepackage{siunitx}",
+})
 
 
 # ---------------------------------------------------------
@@ -74,29 +81,29 @@ def load_bjh_file(path: Path):
 
 
 def plot_volume(data: dict, outpath: Path) -> None:
-    """Plot kumulatives Porenvolumen und dV/d(log d) vs. Porendurchmesser."""
+    """Plot kumulatives Porenvolumen und dV(log d) vs. Porendurchmesser."""
 
     x = data["diameter_nm"]
     y_cum = data["pore_volume_cc_g"]
     y_diff = data["dV_logd_cc_g"]
 
-    fig, ax1 = plt.subplots(figsize=(8, 4.5))
+    fig, ax1 = plt.subplots(figsize=(6.3, 3.15))
 
     # kumulatives Volumen (rot)
-    ax1.plot(x, y_cum, "o-", label="kumulatives Porenvolumen", color="red")
+    ax1.plot(x, y_cum, "o-", markersize=4, label="kumulatives Porenvolumen", color="red")
     ax1.set_xscale("log")
     ax1.set_xticks([3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40])
-    ax1.set_xlim(0,40)
+    ax1.set_xlim(3, 40)
     ax1.set_xticklabels(["3", "4", "5", "6", "7", "8", "9", "10", "20", "30", "40"])
-    ax1.set_xlabel("Porendurchmesser / nm")
-    ax1.set_ylabel("Kumulatives Porenvolumen / (cc g$^{-1}$)", color="red")
+    ax1.set_xlabel(r"Porendurchmesser / \si{\nano\meter}")
+    ax1.set_ylabel(r"Kumulatives Porenvolumen / $\left(\si{\cubic\centi\meter\per\gram}\right)$", color="red")
     ax1.tick_params(axis="y", labelcolor="red")
     ax1.grid(True, which="both", linestyle="--", linewidth=0.5)
 
-    # dV/d(log d) (blau), zweite y-Achse
+    # dV(log d) (blau), zweite y-Achse
     ax2 = ax1.twinx()
-    ax2.plot(x, y_diff, "s-", label="dV/d(log d)", color="blue")
-    ax2.set_ylabel(r"$dV/d(\log d)$ / (cc g$^{-1}$)", color="blue")
+    ax2.plot(x, y_diff, "s-", markersize=4, label="dV(log d)", color="blue")
+    ax2.set_ylabel(r"$dV(\log d)$ / $\left(\si{\cubic\centi\meter\per\gram}\right)$", color="blue")
     ax2.tick_params(axis="y", labelcolor="blue")
 
     fig.tight_layout()
@@ -105,28 +112,28 @@ def plot_volume(data: dict, outpath: Path) -> None:
 
 
 def plot_surface(data: dict, outpath: Path) -> None:
-    """Plot kumulative Oberflaeche und dS/d(log d) vs. Porendurchmesser."""
+    """Plot kumulative Oberflaeche und dS(log d) vs. Porendurchmesser."""
 
     x = data["diameter_nm"]
     y_cum = data["pore_surface_area_m2_g"]
     y_diff = data["dS_logd_m2_g"]
 
-    fig, ax1 = plt.subplots(figsize=(8, 4.5))
+    fig, ax1 = plt.subplots(figsize=(6.3, 3.15))
 
     # kumulative Oberflaeche (rot)
-    ax1.plot(x, y_cum, "o-", label="kumulative Oberflaeche", color="red")
+    ax1.plot(x, y_cum, "o-", markersize=4, label="kumulative Oberflaeche", color="red")
     ax1.set_xscale("log")
     ax1.set_xticks([3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40])
     ax1.set_xticklabels(["3", "4", "5", "6", "7", "8", "9", "10", "20", "30", "40"])
-    ax1.set_xlabel("Porendurchmesser / nm")
-    ax1.set_ylabel("Kumulative Oberflaeche / (m$^2$ g$^{-1}$)", color="red")
+    ax1.set_xlabel(r"Porendurchmesser / \si{\nano\meter}")
+    ax1.set_ylabel(r"Kumulative Oberfläche / $\left(\si{\meter\squared\per\gram}\right)$", color="red")
     ax1.tick_params(axis="y", labelcolor="red")
     ax1.grid(True, which="both", linestyle="--", linewidth=0.5)
 
-    # dS/d(log d) (blau), zweite y-Achse
+    # dS(log d) (blau), zweite y-Achse
     ax2 = ax1.twinx()
-    ax2.plot(x, y_diff, "s-", label="dS/d(log d)", color="blue")
-    ax2.set_ylabel(r"$dS/d(\log d)$ / (m$^2$ g$^{-1}$)", color="blue")
+    ax2.plot(x, y_diff, "s-", markersize=4, label="dS(log d)", color="blue")
+    ax2.set_ylabel(r"$dS(\log d)$ / $\left(\si{\meter\squared\per\gram}\right)$", color="blue")
     ax2.tick_params(axis="y", labelcolor="blue")
 
     fig.tight_layout()
